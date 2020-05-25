@@ -9,16 +9,17 @@ import torch
 from google.protobuf import text_format
 from tensorboardX import SummaryWriter
 
-import torchplus
-import second.data.kitti_common as kitti
-from second.builder import target_assigner_builder, voxel_builder
-from second.data.preprocess import merge_second_batch
-from second.protos import pipeline_pb2
-from second.pytorch.builder import (box_coder_builder, input_reader_builder,
+import pointpillars.torchplus
+import pointpillars.second.data.kitti_common as kitti
+from pointpillars import torchplus
+from pointpillars.second.builder import target_assigner_builder, voxel_builder
+from pointpillars.second.data.preprocess import merge_second_batch
+from pointpillars.second.protos import pipeline_pb2
+from pointpillars.second.pytorch.builder import (box_coder_builder, input_reader_builder,
                                       lr_scheduler_builder, optimizer_builder,
                                       second_builder)
-from second.utils.eval import get_coco_eval_result, get_official_eval_result
-from second.utils.progress_bar import ProgressBar
+from pointpillars.second.utils.eval import get_coco_eval_result, get_official_eval_result
+from pointpillars.second.utils.progress_bar import ProgressBar
 
 
 def _get_pos_neg_loss(cls_loss, labels):

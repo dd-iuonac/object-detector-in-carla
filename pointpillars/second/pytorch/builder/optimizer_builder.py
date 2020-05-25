@@ -14,7 +14,6 @@
 # ==============================================================================
 """Functions to build DetectionModel training optimizers."""
 
-from torchplus.train import learning_schedules
 import torch
 
 
@@ -29,6 +28,9 @@ def build(optimizer_config, params, name=None):
 
   Raises:
     ValueError: when using an unsupported input data type.
+    :param optimizer_config:
+    :param name:
+    :param params:
   """
     optimizer_type = optimizer_config.WhichOneof('optimizer')
     optimizer = None

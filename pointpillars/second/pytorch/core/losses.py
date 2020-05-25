@@ -31,7 +31,8 @@ import torch
 from torch import nn
 from torch.autograd import Variable
 from torch.nn import functional as F
-import torchplus
+import pointpillars.torchplus
+
 
 def indices_to_dense_vector(indices,
                             size,
@@ -61,6 +62,7 @@ def indices_to_dense_vector(indices,
   dense[indices] = indices_value
 
   return dense
+
 
 class Loss(object):
   """Abstract base class for loss functions."""
@@ -111,6 +113,7 @@ class Loss(object):
     """
     pass
 
+
 class WeightedL2LocalizationLoss(Loss):
   """L2 localization loss function with anchorwise output support.
 
@@ -146,6 +149,7 @@ class WeightedL2LocalizationLoss(Loss):
     weighted_diff = diff * weights.unsqueeze(-1)
     square_diff = 0.5 * weighted_diff * weighted_diff
     return square_diff.sum(2)
+
 
 class WeightedSmoothL1LocalizationLoss(Loss):
   """Smooth L1 localization loss function.

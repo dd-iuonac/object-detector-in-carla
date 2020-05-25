@@ -12,8 +12,8 @@ from google.protobuf import symbol_database as _symbol_database
 _sym_db = _symbol_database.Default()
 
 
-from second.protos import optimizer_pb2 as second_dot_protos_dot_optimizer__pb2
-from second.protos import preprocess_pb2 as second_dot_protos_dot_preprocess__pb2
+from pointpillars.second.protos import optimizer_pb2 as second_dot_protos_dot_optimizer__pb2
+from pointpillars.second.protos import preprocess_pb2 as second_dot_protos_dot_preprocess__pb2
 
 
 DESCRIPTOR = _descriptor.FileDescriptor(

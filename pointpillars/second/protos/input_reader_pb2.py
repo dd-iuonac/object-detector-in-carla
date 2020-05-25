@@ -12,9 +12,9 @@ from google.protobuf import symbol_database as _symbol_database
 _sym_db = _symbol_database.Default()
 
 
-from second.protos import target_pb2 as second_dot_protos_dot_target__pb2
-from second.protos import preprocess_pb2 as second_dot_protos_dot_preprocess__pb2
-from second.protos import sampler_pb2 as second_dot_protos_dot_sampler__pb2
+from pointpillars.second.protos import target_pb2 as second_dot_protos_dot_target__pb2
+from pointpillars.second.protos import preprocess_pb2 as second_dot_protos_dot_preprocess__pb2
+from pointpillars.second.protos import sampler_pb2 as second_dot_protos_dot_sampler__pb2
 
 
 DESCRIPTOR = _descriptor.FileDescriptor(

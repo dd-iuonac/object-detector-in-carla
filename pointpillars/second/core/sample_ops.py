@@ -1,17 +1,14 @@
 import pathlib
-import pickle
-import time
-from functools import partial, reduce
+from functools import reduce
 
 import numpy as np
-from skimage import io as imgio
 
-from second.core import preprocess as prep
-from second.core import box_np_ops
-from second.data import kitti_common as kitti
+from pointpillars.second.core import preprocess as prep
+from pointpillars.second.core import box_np_ops
 import copy
 
-from second.utils.check import shape_mergeable
+from pointpillars.second.utils.check import shape_mergeable
+
 
 class DataBaseSamplerV2:
     def __init__(self, db_infos, groups, db_prepor=None,
@@ -73,7 +70,6 @@ class DataBaseSamplerV2:
                             info_dict[group_name] = 1
                 print(info_dict)
 
-
         self._sampler_dict = {}
         for k, v in self._group_db_infos.items():
             self._sampler_dict[k] = prep.BatchSampler(v, k)
@@ -84,7 +80,7 @@ class DataBaseSamplerV2:
             else:
                 assert shape_mergeable(global_rot_range, [2])
             if np.abs(global_rot_range[0] -
-                        global_rot_range[1]) >= 1e-3:
+                      global_rot_range[1]) >= 1e-3:
                 self._enable_global_rot = True
         self._global_rot_range = global_rot_range
 
@@ -126,13 +122,13 @@ class DataBaseSamplerV2:
         sampled = []
         sampled_gt_boxes = []
         avoid_coll_boxes = gt_boxes
-        
+
         for class_name, sampled_num in zip(sampled_groups,
                                            sample_num_per_class):
             if sampled_num > 0:
                 if self._use_group_sampling:
                     sampled_cls = self.sample_group(class_name, sampled_num,
-                                                       avoid_coll_boxes, total_group_ids)
+                                                    avoid_coll_boxes, total_group_ids)
                 else:
                     sampled_cls = self.sample_class_v2(class_name, sampled_num,
                                                        avoid_coll_boxes)
@@ -200,7 +196,7 @@ class DataBaseSamplerV2:
                 "difficulty": np.array([s["difficulty"] for s in sampled]),
                 "gt_boxes": sampled_gt_boxes,
                 "points": np.concatenate(s_points_list, axis=0),
-                "gt_masks": np.ones((num_sampled, ), dtype=np.bool_)
+                "gt_masks": np.ones((num_sampled,), dtype=np.bool_)
             }
             if self._use_group_sampling:
                 ret["group_ids"] = np.array([s["group_id"] for s in sampled])
@@ -218,7 +214,7 @@ class DataBaseSamplerV2:
             return reduce(lambda x, y: x + y, ret), groups_num
         else:
             ret = self._sampler_dict[name].sample(num)
-            return ret, np.ones((len(ret), ), dtype=np.int64)
+            return ret, np.ones((len(ret),), dtype=np.int64)
 
     def sample_v1(self, name, num):
         if isinstance(name, (list, tuple)):
@@ -228,8 +224,7 @@ class DataBaseSamplerV2:
             return reduce(lambda x, y: x + y, ret), groups_num
         else:
             ret = self._sampler_dict[name].sample(num)
-            return ret, np.ones((len(ret), ), dtype=np.int64)
-
+            return ret, np.ones((len(ret),), dtype=np.int64)
 
     def sample_class_v2(self, name, num, gt_boxes):
         sampled = self._sampler_dict[name].sample(num)
@@ -276,7 +271,7 @@ class DataBaseSamplerV2:
                     sampled[i - num_gt]["box3d_lidar"][:2] = boxes[i, :2]
                     sampled[i - num_gt]["box3d_lidar"][-1] = boxes[i, -1]
                     sampled[i - num_gt]["rot_transform"] = (
-                        boxes[i, -1] - sp_boxes[i - num_gt, -1])
+                            boxes[i, -1] - sp_boxes[i - num_gt, -1])
                 valid_samples.append(sampled[i - num_gt])
         return valid_samples
 
@@ -295,7 +290,7 @@ class DataBaseSamplerV2:
                 gid_map[gid] = sampled_gid
                 s["group_id"] = sampled_gid
                 sampled_gid += 1
-        
+
         num_gt = gt_boxes.shape[0]
         gt_boxes_bv = box_np_ops.center_to_corner_box2d(
             gt_boxes[:, 0:2], gt_boxes[:, 3:5], gt_boxes[:, 6])
@@ -339,7 +334,7 @@ class DataBaseSamplerV2:
                         sampled[idx - num_gt + i]["box3d_lidar"][:2] = boxes[idx + i, :2]
                         sampled[idx - num_gt + i]["box3d_lidar"][-1] = boxes[idx + i, -1]
                         sampled[idx - num_gt + i]["rot_transform"] = (
-                            boxes[idx + i, -1] - sp_boxes[idx + i - num_gt, -1])
+                                boxes[idx + i, -1] - sp_boxes[idx + i - num_gt, -1])
 
                     valid_samples.append(sampled[idx - num_gt + i])
             idx += num

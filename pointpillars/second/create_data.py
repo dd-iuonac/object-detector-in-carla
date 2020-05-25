@@ -1,15 +1,12 @@
-import copy
 import pathlib
 import pickle
 
 import fire
 import numpy as np
-from skimage import io as imgio
 
-from second.core import box_np_ops
-from second.core.point_cloud.point_cloud_ops import bound_points_jit
-from second.data import kitti_common as kitti
-from second.utils.progress_bar import list_bar as prog_bar
+from pointpillars.second.core import box_np_ops
+from pointpillars.second.data import kitti_common as kitti
+from pointpillars.second.utils.progress_bar import list_bar as prog_bar
 """
 Note: tqdm has problem in my system(win10), so use my progress bar
 try:

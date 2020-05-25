@@ -1,13 +1,13 @@
 import math
 from pathlib import Path
 
-from second.utils.buildtools.pybind11_build import load_pb11
-from second.utils.find import find_cuda_device_arch
+from pointpillars.second.utils.buildtools.pybind11_build import load_pb11
+from pointpillars.second.utils.find import find_cuda_device_arch
 import numba
 import numpy as np
 
 try:
-    from second.core.non_max_suppression.nms import (
+    from pointpillars.second.core.non_max_suppression.nms import (
         non_max_suppression_cpu, rotate_non_max_suppression_cpu)
 except:
     current_dir = Path(__file__).resolve().parents[0]
@@ -16,10 +16,10 @@ except:
         current_dir / "nms.so",
         current_dir,
         cuda=True)
-    from second.core.non_max_suppression.nms import (
+    from pointpillars.second.core.non_max_suppression.nms import (
         non_max_suppression_cpu, rotate_non_max_suppression_cpu)
 
-from second.core import box_np_ops
+from pointpillars.second.core import box_np_ops
 
 
 def nms_cc(dets, thresh):

@@ -1,7 +1,5 @@
-import numpy as np
-
-from second.core.voxel_generator import VoxelGenerator
-from second.protos import voxel_generator_pb2
+from pointpillars.second.core.voxel_generator import VoxelGenerator
+from pointpillars.second.protos import voxel_generator_pb2
 
 
 def build(voxel_config):

@@ -1,11 +1,11 @@
 from pathlib import Path
 
-import torchplus
-from second.core import box_np_ops
-from second.core.inference import InferenceContext
-from second.builder import target_assigner_builder, voxel_builder
-from second.pytorch.builder import box_coder_builder, second_builder
-from second.pytorch.train import predict_kitti_to_anno, example_convert_to_torch
+from pointpillars import torchplus
+from pointpillars.second.core import box_np_ops
+from pointpillars.second.core.inference import InferenceContext
+from pointpillars.second.builder import target_assigner_builder, voxel_builder
+from pointpillars.second.pytorch.builder import box_coder_builder, second_builder
+from pointpillars.second.pytorch.train import predict_kitti_to_anno, example_convert_to_torch
 
 
 class TorchInferenceContext(InferenceContext):

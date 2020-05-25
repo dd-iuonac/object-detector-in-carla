@@ -1,4 +1,5 @@
-import second.core.preprocess as prep
+import pointpillars.second.core.preprocess as prep
+
 
 def build_db_preprocess(db_prep_config):
     prep_type = db_prep_config.WhichOneof('database_preprocessing_step')

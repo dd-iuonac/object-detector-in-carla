@@ -1,7 +1,7 @@
 import numpy as np
 
-from second.core import region_similarity
-from second.protos import similarity_pb2
+from pointpillars.second.core import region_similarity
+from pointpillars.second.protos import similarity_pb2
 
 
 def build(similarity_config):

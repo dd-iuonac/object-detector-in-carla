@@ -1,5 +1,5 @@
 import numpy as np
-from second.core.point_cloud.point_cloud_ops import points_to_voxel
+from pointpillars.second.core.point_cloud.point_cloud_ops import points_to_voxel
 
 
 class VoxelGenerator:

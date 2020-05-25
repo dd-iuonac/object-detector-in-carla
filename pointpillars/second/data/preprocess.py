@@ -3,11 +3,11 @@ from collections import defaultdict
 
 import numpy as np
 
-from second.core import box_np_ops
-from second.core import preprocess as prep
-from second.core.geometry import points_in_convex_polygon_3d_jit
-from second.core.point_cloud.bev_ops import points_to_bev
-from second.data import kitti_common as kitti
+from pointpillars.second.core import box_np_ops
+from pointpillars.second.core import preprocess as prep
+from pointpillars.second.core.geometry import points_in_convex_polygon_3d_jit
+from pointpillars.second.core.point_cloud.bev_ops import points_to_bev
+from pointpillars.second.data import kitti_common as kitti
 
 
 def merge_second_batch(batch_list, _unused=False):

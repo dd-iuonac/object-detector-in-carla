@@ -1,14 +1,8 @@
-import pathlib
 import pickle
-import time
 from functools import partial
 
-import numpy as np
-
-from second.core import box_np_ops
-from second.core import preprocess as prep
-from second.data import kitti_common as kitti
-from second.data.preprocess import _read_and_prep_v9
+from pointpillars.second.core import box_np_ops
+from pointpillars.second.data.preprocess import _read_and_prep_v9
 
 
 class Dataset(object):
@@ -23,7 +17,6 @@ class Dataset(object):
 
     def __len__(self):
         raise NotImplementedError
-
 
 
 class KittiDataset(Dataset):

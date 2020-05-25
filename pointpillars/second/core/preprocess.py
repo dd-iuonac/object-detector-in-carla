@@ -8,8 +8,8 @@ import numba
 import numpy as np
 from shapely.geometry import Polygon
 
-from second.core import box_np_ops
-from second.core.geometry import (points_in_convex_polygon_3d_jit,
+from pointpillars.second.core import box_np_ops
+from pointpillars.second.core.geometry import (points_in_convex_polygon_3d_jit,
                                     points_in_convex_polygon_jit)
 import copy
 

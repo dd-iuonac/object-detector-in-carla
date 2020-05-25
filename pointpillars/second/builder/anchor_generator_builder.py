@@ -1,7 +1,7 @@
 import numpy as np
 
-from second.protos import box_coder_pb2
-from second.core.anchor_generator import (
+from pointpillars.second.protos import box_coder_pb2
+from pointpillars.second.core.anchor_generator import (
     AnchorGeneratorStride, AnchorGeneratorRange)
 
 

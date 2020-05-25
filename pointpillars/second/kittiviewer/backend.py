@@ -12,19 +12,19 @@ import sys
 from functools import partial
 from pathlib import Path
 
-import second.core.box_np_ops as box_np_ops
-import second.core.preprocess as prep
-from second.core.box_coders import GroundBox3dCoder
-from second.core.point_cloud.point_cloud_ops import points_to_voxel
-from second.core.region_similarity import (
+import pointpillars.second.core.box_np_ops as box_np_ops
+import pointpillars.second.core.preprocess as prep
+from pointpillars.second.core.box_coders import GroundBox3dCoder
+from pointpillars.second.core.point_cloud.point_cloud_ops import points_to_voxel
+from pointpillars.second.core.region_similarity import (
     DistanceSimilarity, NearestIouSimilarity, RotateIouSimilarity)
-from second.core.sample_ops import DataBaseSamplerV2
-from second.core.target_assigner import TargetAssigner
-from second.data import kitti_common as kitti
-from second.protos import pipeline_pb2
-from second.utils.eval import get_coco_eval_result, get_official_eval_result
-from second.pytorch.inference import TorchInferenceContext
-from second.utils.progress_bar import list_bar
+from pointpillars.second.core.sample_ops import DataBaseSamplerV2
+from pointpillars.second.core.target_assigner import TargetAssigner
+from pointpillars.second.data import kitti_common as kitti
+from pointpillars.second.protos import pipeline_pb2
+from pointpillars.second.utils.eval import get_coco_eval_result, get_official_eval_result
+from pointpillars.second.pytorch.inference import TorchInferenceContext
+from pointpillars.second.utils.progress_bar import list_bar
 
 app = Flask("second")
 CORS(app)

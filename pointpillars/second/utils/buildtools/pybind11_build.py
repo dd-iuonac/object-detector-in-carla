@@ -1,10 +1,7 @@
-import shutil
 import subprocess
-import tempfile
-from pathlib import Path
 
-from second.utils.loader import import_file
-from second.utils.find import find_cuda_device_arch
+from pointpillars.second.utils.loader import import_file
+from pointpillars.second.utils.find import find_cuda_device_arch
 from .command import CUDALink, Gpp, Nvcc, compile_libraries, out
 
 

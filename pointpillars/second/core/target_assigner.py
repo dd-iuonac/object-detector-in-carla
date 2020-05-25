@@ -1,6 +1,6 @@
-from second.core import box_np_ops
-from second.core.target_ops import create_target_np
-from second.core import region_similarity
+from pointpillars.second.core import box_np_ops
+from pointpillars.second.core.target_ops import create_target_np
+from pointpillars.second.core import region_similarity
 import numpy as np
 
 class TargetAssigner:

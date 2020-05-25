@@ -1,8 +1,8 @@
 from abc import ABCMeta
 from abc import abstractmethod
 from abc import abstractproperty
-from second.core.box_coders import GroundBox3dCoder, BevBoxCoder
-from second.pytorch.core import box_torch_ops
+from pointpillars.second.core.box_coders import GroundBox3dCoder, BevBoxCoder
+from pointpillars.second.pytorch.core import box_torch_ops
 import torch
 
 class GroundBox3dCoderTorch(GroundBox3dCoder):

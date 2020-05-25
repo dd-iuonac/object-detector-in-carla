@@ -1,5 +1,5 @@
 import numpy as np
-from second.core import box_np_ops
+from pointpillars.second.core import box_np_ops
 
 
 class AnchorGeneratorStride:

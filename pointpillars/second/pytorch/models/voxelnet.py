@@ -8,17 +8,17 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-import torchplus
-from torchplus import metrics
-from torchplus.nn import Empty, GroupNorm, Sequential
-from torchplus.ops.array_ops import gather_nd, scatter_nd
-from torchplus.tools import change_default_args
-from second.pytorch.core import box_torch_ops
-from second.pytorch.core.losses import (WeightedSigmoidClassificationLoss,
+import pointpillars.torchplus
+from pointpillars.torchplus import metrics
+from pointpillars.torchplus.nn import Empty, GroupNorm, Sequential
+from pointpillars.torchplus.ops.array_ops import gather_nd, scatter_nd
+from pointpillars.torchplus.tools import change_default_args
+from pointpillars.second.pytorch.core import box_torch_ops
+from pointpillars.second.pytorch.core.losses import (WeightedSigmoidClassificationLoss,
                                           WeightedSmoothL1LocalizationLoss,
                                           WeightedSoftmaxClassificationLoss)
-from second.pytorch.models.pointpillars import PillarFeatureNet, PointPillarsScatter
-from second.pytorch.utils import get_paddings_indicator
+from pointpillars.second.pytorch.models.pointpillars import PillarFeatureNet, PointPillarsScatter
+from pointpillars.second.pytorch.utils import get_paddings_indicator
 
 
 def _get_pos_neg_loss(cls_loss, labels):

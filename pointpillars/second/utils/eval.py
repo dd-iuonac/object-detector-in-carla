@@ -2,7 +2,7 @@ import io as sysio
 import numba
 import numpy as np
 
-from second.core.non_max_suppression.nms_gpu import rotate_iou_gpu_eval
+from pointpillars.second.core.non_max_suppression.nms_gpu import rotate_iou_gpu_eval
 
 
 def get_mAP(prec):

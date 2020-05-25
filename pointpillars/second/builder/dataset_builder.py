@@ -22,11 +22,10 @@ Detection configuration framework, they should define their own builder function
 that wraps the build function.
 """
 
-from second.protos import input_reader_pb2
-from second.data.dataset import KittiDataset
-from second.data.preprocess import prep_pointcloud
-import numpy as np
-from second.builder import dbsampler_builder
+from pointpillars.second.protos import input_reader_pb2
+from pointpillars.second.data.dataset import KittiDataset
+from pointpillars.second.data.preprocess import prep_pointcloud
+from pointpillars.second.builder import dbsampler_builder
 from functools import partial
 
 

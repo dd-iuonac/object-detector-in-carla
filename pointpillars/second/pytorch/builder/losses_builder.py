@@ -15,8 +15,8 @@
 
 """A function to build localization and classification losses from config."""
 
-from second.pytorch.core import losses
-from second.protos import losses_pb2
+from pointpillars.second.pytorch.core import losses
+from pointpillars.second.protos import losses_pb2
 
 
 def build(loss_config):

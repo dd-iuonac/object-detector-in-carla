@@ -8,9 +8,9 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-from second.pytorch.utils import get_paddings_indicator
-from torchplus.nn import Empty
-from torchplus.tools import change_default_args
+from pointpillars.second.pytorch.utils import get_paddings_indicator
+from pointpillars.torchplus.nn import Empty
+from pointpillars.torchplus.tools import change_default_args
 
 
 class PFNLayer(nn.Module):

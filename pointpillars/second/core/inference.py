@@ -4,8 +4,8 @@ import contextlib
 import numpy as np
 from google.protobuf import text_format
 
-from second.data.preprocess import merge_second_batch, prep_pointcloud
-from second.protos import pipeline_pb2
+from pointpillars.second.data.preprocess import merge_second_batch, prep_pointcloud
+from pointpillars.second.protos import pipeline_pb2
 
 
 class InferenceContext:

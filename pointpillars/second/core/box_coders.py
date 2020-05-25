@@ -1,8 +1,9 @@
 from abc import ABCMeta
 from abc import abstractmethod
 from abc import abstractproperty
-from second.core import box_np_ops
+from pointpillars.second.core import box_np_ops
 import numpy as np
+
 
 class BoxCoder(object):
     """Abstract base class for box coder."""

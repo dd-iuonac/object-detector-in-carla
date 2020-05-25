@@ -27,6 +27,15 @@ STARTING in a moment...
 """
 
 import argparse
+import pathlib
+
+from skimage import io
+
+from pointpillars.second.core import box_np_ops
+from pointpillars.second.create_data import _create_reduced_point_cloud
+from pointpillars.second.data.kitti_common import _extend_matrix, add_difficulty_to_annos, get_velodyne_path, \
+    get_image_path, get_label_path, get_label_anno, get_calib_path
+from pointpillars.second.pytorch.inference import TorchInferenceContext
 
 try:
     import pygame
@@ -58,8 +67,8 @@ import time
 from math import cos, sin
 
 """ OUTPUT FOLDER GENERATION """
-PHASE = "training"
-# PHASE = "testing"
+# PHASE = "training"
+PHASE = "testing"
 OUTPUT_FOLDER = os.path.join("_out", PHASE)
 folders = ['calib', 'image_2', 'label_2', 'velodyne', 'planes']
 
@@ -81,8 +90,225 @@ IMAGE_PATH = os.path.join(OUTPUT_FOLDER, 'image_2/{0:06}.png')
 CALIBRATION_PATH = os.path.join(OUTPUT_FOLDER, 'calib/{0:06}.txt')
 
 
+def get_carla_info(
+        idx,
+        path,
+        training=True,
+        label_info=True,
+        velodyne=False,
+        calib=False,
+        extend_matrix=True,
+        relative_path=True,
+        with_imageshape=True):
+    root_path = pathlib.Path(path)
+    image_info = {'image_idx': idx, 'pointcloud_num_features': 4}
+    annotations = None
+    if velodyne:
+        image_info['velodyne_path'] = get_velodyne_path(
+            idx, path, training, relative_path)
+    image_info['img_path'] = get_image_path(idx, path, training,
+                                            relative_path)
+    if with_imageshape:
+        img_path = image_info['img_path']
+        if relative_path:
+            img_path = str(root_path / img_path)
+        image_info['img_shape'] = np.array(
+            io.imread(img_path).shape[:2], dtype=np.int32)
+    if label_info:
+        label_path = get_label_path(idx, path, training, relative_path)
+        if relative_path:
+            label_path = str(root_path / label_path)
+        annotations = get_label_anno(label_path)
+    if calib:
+        calib_path = get_calib_path(
+            idx, path, training, relative_path=False)
+        with open(calib_path, 'r') as f:
+            lines = f.readlines()
+        P0 = np.array(
+            [float(info) for info in lines[0].split(' ')[1:13]]).reshape(
+            [3, 4])
+        P1 = np.array(
+            [float(info) for info in lines[1].split(' ')[1:13]]).reshape(
+            [3, 4])
+        P2 = np.array(
+            [float(info) for info in lines[2].split(' ')[1:13]]).reshape(
+            [3, 4])
+        P3 = np.array(
+            [float(info) for info in lines[3].split(' ')[1:13]]).reshape(
+            [3, 4])
+        if extend_matrix:
+            P0 = _extend_matrix(P0)
+            P1 = _extend_matrix(P1)
+            P2 = _extend_matrix(P2)
+            P3 = _extend_matrix(P3)
+        image_info['calib/P0'] = P0
+        image_info['calib/P1'] = P1
+        image_info['calib/P2'] = P2
+        image_info['calib/P3'] = P3
+        R0_rect = np.array([
+            float(info) for info in lines[4].split(' ')[1:10]
+        ]).reshape([3, 3])
+        if extend_matrix:
+            rect_4x4 = np.zeros([4, 4], dtype=R0_rect.dtype)
+            rect_4x4[3, 3] = 1.
+            rect_4x4[:3, :3] = R0_rect
+        else:
+            rect_4x4 = R0_rect
+        image_info['calib/R0_rect'] = rect_4x4
+        Tr_velo_to_cam = np.array([
+            float(info) for info in lines[5].split(' ')[1:13]
+        ]).reshape([3, 4])
+        Tr_imu_to_velo = np.array([
+            float(info) for info in lines[6].split(' ')[1:13]
+        ]).reshape([3, 4])
+        if extend_matrix:
+            Tr_velo_to_cam = _extend_matrix(Tr_velo_to_cam)
+            Tr_imu_to_velo = _extend_matrix(Tr_imu_to_velo)
+        image_info['calib/Tr_velo_to_cam'] = Tr_velo_to_cam
+        image_info['calib/Tr_imu_to_velo'] = Tr_imu_to_velo
+    if annotations is not None:
+        image_info['annos'] = annotations
+        add_difficulty_to_annos(image_info)
+    return image_info
+
+
+def _create_reduced_point_cloud(data_path,
+                                info,
+                                save_path=None,
+                                back=False):
+    v_path = info['velodyne_path']
+    v_path = pathlib.Path(data_path) / v_path
+    points_v = np.fromfile(str(v_path), dtype=np.float32, count=-1).reshape([-1, 4])
+    rect = info['calib/R0_rect']
+    P2 = info['calib/P2']
+    Trv2c = info['calib/Tr_velo_to_cam']
+    # first remove z < 0 points
+    # keep = points_v[:, -1] > 0
+    # points_v = points_v[keep]
+    # then remove outside.
+    if back:
+        points_v[:, 0] = -points_v[:, 0]
+    points_v = box_np_ops.remove_outside_points(points_v, rect, Trv2c, P2,
+                                                info["img_shape"])
+    return points_v
+    #
+    # if save_path is None:
+    #     save_filename = v_path.parent.parent / (v_path.parent.stem + "_reduced") / v_path.name
+    #     # save_filename = str(v_path) + '_reduced'
+    #     if back:
+    #         save_filename += "_back"
+    # else:
+    #     save_filename = str(pathlib.Path(save_path) / v_path.name)
+    #     if back:
+    #         save_filename += "_back"
+    # with open(save_filename, 'w') as f:
+    #     points_v.tofile(f)
+
+
+#
+# def get_label_anno(lines):
+#     annotations = {}
+#     annotations.update({
+#         'name': [],
+#         'truncated': [],
+#         'occluded': [],
+#         'alpha': [],
+#         'bbox': [],
+#         'dimensions': [],
+#         'location': [],
+#         'rotation_y': []
+#     })
+#     # with open(label_path, 'r') as f:
+#     #     lines = f.readlines()
+#     # if len(lines) == 0 or len(lines[0]) < 15:
+#     #     content = []
+#     # else:
+#     content = [line.strip().split(' ') for line in lines]
+#     num_objects = len([x[0] for x in content if x[0] != 'DontCare'])
+#     annotations['name'] = np.array([x[0] for x in content])
+#     num_gt = len(annotations['name'])
+#     annotations['truncated'] = np.array([float(x[1]) for x in content])
+#     annotations['occluded'] = np.array([int(x[2]) for x in content])
+#     annotations['alpha'] = np.array([float(x[3]) for x in content])
+#     annotations['bbox'] = np.array(
+#         [[float(info) for info in x[4:8]] for x in content]).reshape(-1, 4)
+#     # dimensions will convert hwl format to standard lhw(camera) format.
+#     annotations['dimensions'] = np.array(
+#         [[float(info) for info in x[8:11]] for x in content]).reshape(
+#             -1, 3)[:, [2, 0, 1]]
+#     annotations['location'] = np.array(
+#         [[float(info) for info in x[11:14]] for x in content]).reshape(-1, 3)
+#     annotations['rotation_y'] = np.array(
+#         [float(x[14]) for x in content]).reshape(-1)
+#     if len(content) != 0 and len(content[0]) == 16:  # have score
+#         annotations['score'] = np.array([float(x[15]) for x in content])
+#     else:
+#         annotations['score'] = np.zeros((annotations['bbox'].shape[0], ))
+#     index = list(range(num_objects)) + [-1] * (num_gt - num_objects)
+#     annotations['index'] = np.array(index, dtype=np.int32)
+#     annotations['group_ids'] = np.arange(num_gt, dtype=np.int32)
+#     return annotations
+#
+#
+# def get_kitti_image_info(label, image, calib):
+#     image_info = {'image_idx': 0, 'pointcloud_num_features': 4}
+#     annotations = None
+#     image_info['img_shape'] = np.array(image.shape[:2], dtype=np.int32)
+#     annotations = get_label_anno(label)
+#
+#     P0 = np.array(
+#         [float(info) for info in calib[0].split(' ')[1:13]]).reshape(
+#             [3, 4])
+#     P1 = np.array(
+#         [float(info) for info in calib[1].split(' ')[1:13]]).reshape(
+#             [3, 4])
+#     P2 = np.array(
+#         [float(info) for info in calib[2].split(' ')[1:13]]).reshape(
+#             [3, 4])
+#     P3 = np.array(
+#         [float(info) for info in calib[3].split(' ')[1:13]]).reshape(
+#             [3, 4])
+#     P0 = _extend_matrix(P0)
+#     P1 = _extend_matrix(P1)
+#     P2 = _extend_matrix(P2)
+#     P3 = _extend_matrix(P3)
+#     image_info['calib/P0'] = P0
+#     image_info['calib/P1'] = P1
+#     image_info['calib/P2'] = P2
+#     image_info['calib/P3'] = P3
+#
+#     R0_rect = np.array([
+#         float(info) for info in calib[4].split(' ')[1:10]
+#     ]).reshape([3, 3])
+#
+#     rect_4x4 = np.zeros([4, 4], dtype=R0_rect.dtype)
+#     rect_4x4[3, 3] = 1.
+#     rect_4x4[:3, :3] = R0_rect
+#
+#     image_info['calib/R0_rect'] = rect_4x4
+#     Tr_velo_to_cam = np.array([
+#         float(info) for info in calib[5].split(' ')[1:13]
+#     ]).reshape([3, 4])
+#     Tr_imu_to_velo = np.array([
+#         float(info) for info in calib[6].split(' ')[1:13]
+#     ]).reshape([3, 4])
+#     Tr_velo_to_cam = _extend_matrix(Tr_velo_to_cam)
+#     Tr_imu_to_velo = _extend_matrix(Tr_imu_to_velo)
+#     image_info['calib/Tr_velo_to_cam'] = Tr_velo_to_cam
+#     image_info['calib/Tr_imu_to_velo'] = Tr_imu_to_velo
+#
+#     if annotations is not None:
+#         image_info['annos'] = annotations
+#         add_difficulty_to_annos(image_info)
+#     return image_info
+#
+
 class CarlaGame(object):
     def __init__(self, carla_client, args):
+        self.torchInference = TorchInferenceContext()
+        self.torchInference.build("pointpillars/second/configs/carla/car/xyres_16.proto")
+        self.torchInference.restore("pointpillars/models/carla_model_1_AP_67.20/voxelnet-296960.tckpt")
+
         self.client = carla_client
         self._carla_settings, self._intrinsic, self._camera_to_car_transform, self._lidar_to_car_transform = make_carla_settings(
             args)
@@ -123,7 +349,8 @@ class CarlaGame(object):
         if num_existing_data_files == 0:
             return 0
         answer = input(
-            "There already exists a dataset in {}. Would you like to (O)verwrite or (A)ppend the dataset? (O/A)".format(OUTPUT_FOLDER))
+            "There already exists a dataset in {}. Would you like to (O)verwrite or (A)ppend the dataset? (O/A)".format(
+                OUTPUT_FOLDER))
         if answer.upper() == "O":
             logging.info(
                 "Resetting frame number to 0 and overwriting existing")
@@ -152,7 +379,8 @@ class CarlaGame(object):
         if self._city_name is not None:
             self._display = pygame.display.set_mode(
                 (WINDOW_WIDTH + int((WINDOW_HEIGHT /
-                                     float(self._map.map_image.shape[0]))*self._map.map_image.shape[1]), WINDOW_HEIGHT),
+                                     float(self._map.map_image.shape[0])) * self._map.map_image.shape[1]),
+                 WINDOW_HEIGHT),
                 pygame.HWSURFACE | pygame.DOUBLEBUF)
         else:
             self._display = pygame.display.set_mode(
@@ -186,7 +414,7 @@ class CarlaGame(object):
         # Reset the environment if the agent is stuck or can't find any agents or if we have captured enough frames in this one
         is_stuck = self._frames_since_last_capture >= NUM_EMPTY_FRAMES_BEFORE_RESET
         is_enough_datapoints = (
-            self._captured_frames_since_restart + 1) % NUM_RECORDINGS_BEFORE_RESET == 0
+                                       self._captured_frames_since_restart + 1) % NUM_RECORDINGS_BEFORE_RESET == 0
 
         if (is_stuck or is_enough_datapoints) and GEN_DATA:
             logging.warning("Is stucK: {}, is_enough_datapoints: {}".format(
@@ -286,13 +514,13 @@ class CarlaGame(object):
                 print('yaw: ', yaw)
 
                 # Rotation matrix for pitch
-                rotP = np.array([[cos(pitch),            0,              sin(pitch)],
-                                 [0,            1,     0],
-                                 [-sin(pitch),            0,     cos(pitch)]])
+                rotP = np.array([[cos(pitch), 0, sin(pitch)],
+                                 [0, 1, 0],
+                                 [-sin(pitch), 0, cos(pitch)]])
                 # Rotation matrix for roll
-                rotR = np.array([[1,            0,              0],
-                                 [0,            cos(roll),     -sin(roll)],
-                                 [0,            sin(roll),     cos(roll)]])
+                rotR = np.array([[1, 0, 0],
+                                 [0, cos(roll), -sin(roll)],
+                                 [0, sin(roll), cos(roll)]])
 
                 # combined rotation matrix, must be in order roll, pitch, yaw
                 rotRP = np.matmul(rotR, rotP)
@@ -318,7 +546,7 @@ class CarlaGame(object):
 
             # Determine whether to save files
             distance_driven = self._distance_since_last_recording()
-            #print("Distance driven since last recording: {}".format(distance_driven))
+            # print("Distance driven since last recording: {}".format(distance_driven))
             has_driven_long_enough = distance_driven is None or distance_driven > DISTANCE_SINCE_LAST_RECORDING
             if (self._timer.step + 1) % STEPS_BETWEEN_RECORDINGS == 0:
                 if has_driven_long_enough and datapoints:
@@ -337,14 +565,14 @@ class CarlaGame(object):
                         print('yaw: ', yaw)
 
                         # Rotation matrix for pitch
-                        rotP = np.array([[cos(pitch),            0,              sin(pitch)],
-                                         [0,            1,     0],
-                                         [-sin(pitch),            0,     cos(pitch)]])
+                        rotP = np.array([[cos(pitch), 0, sin(pitch)],
+                                         [0, 1, 0],
+                                         [-sin(pitch), 0, cos(pitch)]])
                         # Rotation matrix for roll
-                        rotR = np.array([[1,            0,              0],
-                                         [0,            cos(
-                                             roll),     -sin(roll)],
-                                         [0,            sin(roll),     cos(roll)]])
+                        rotR = np.array([[1, 0, 0],
+                                         [0, cos(
+                                             roll), -sin(roll)],
+                                         [0, sin(roll), cos(roll)]])
 
                         # combined rotation matrix, must be in order roll, pitch, yaw
                         rotRP = np.matmul(rotR, rotP)
@@ -356,16 +584,35 @@ class CarlaGame(object):
                     self._update_agent_location()
                     # Save screen, lidar and kitti training labels together with calibration and groundplane files
                     self._save_training_files(datapoints, point_cloud)
+                    self._get_predictions()
                     self.captured_frame_no += 1
                     self._captured_frames_since_restart += 1
                     self._frames_since_last_capture = 0
                 else:
-                    logging.debug("Could save datapoint, but agent has not driven {} meters since last recording (Currently {} meters)".format(
-                        DISTANCE_SINCE_LAST_RECORDING, distance_driven))
+                    logging.debug(
+                        "Could save datapoint, but agent has not driven {} meters since last recording (Currently {} meters)".format(
+                            DISTANCE_SINCE_LAST_RECORDING, distance_driven))
             else:
                 self._frames_since_last_capture += 1
                 logging.debug(
                     "Could not save training data - no visible agents of selected classes in scene")
+
+    def _get_predictions(self):
+        carla_info = get_carla_info(idx=self.captured_frame_no,
+                                    path="_out",
+                                    training=False,
+                                    label_info=False,
+                                    velodyne=True,
+                                    calib=True,
+                                    relative_path=True)
+        points = _create_reduced_point_cloud(data_path="_out", info=carla_info)
+
+        logging.info("Attempting to predict")
+        inputs = self.torchInference.get_inference_input_dict(carla_info, points)
+        with self.torchInference.ctx():
+            det_annos = self.torchInference.inference(inputs)[0]
+            print(det_annos)
+        # self.draw_detection(det_annos[0])
 
     def _distance_since_last_recording(self):
         if self._agent_location_on_last_capture is None:
@@ -373,7 +620,8 @@ class CarlaGame(object):
         cur_pos = vector3d_to_array(
             self._measurements.player_measurements.transform.location)
         last_pos = vector3d_to_array(self._agent_location_on_last_capture)
-        def dist_func(x, y): return sum((x - y)**2)
+
+        def dist_func(x, y): return sum((x - y) ** 2)
 
         return dist_func(cur_pos, last_pos)
 
@@ -391,7 +639,8 @@ class CarlaGame(object):
         for agent in self._measurements.non_player_agents:
             if should_detect_class(agent) and GEN_DATA:
                 image, kitti_datapoint = create_kitti_data_point(
-                    agent, self._intrinsic, self._extrinsic.matrix, image, self._depth_image, self._measurements.player_measurements, rotRP)
+                    agent, self._intrinsic, self._extrinsic.matrix, image, self._depth_image,
+                    self._measurements.player_measurements, rotRP)
                 if kitti_datapoint:
                     datapoints.append(kitti_datapoint)
 
@@ -420,12 +669,12 @@ class CarlaGame(object):
     def _display_agents(self, image):
         image = image[:, :, :3]
         new_window_width = (float(WINDOW_HEIGHT) / float(self._map_shape[0])) * \
-            float(self._map_shape[1])
+                           float(self._map_shape[1])
         surface = pygame.surfarray.make_surface(image.swapaxes(0, 1))
         w_pos = int(
-            self._position[0]*(float(WINDOW_HEIGHT)/float(self._map_shape[0])))
+            self._position[0] * (float(WINDOW_HEIGHT) / float(self._map_shape[0])))
         h_pos = int(self._position[1] *
-                    (new_window_width/float(self._map_shape[1])))
+                    (new_window_width / float(self._map_shape[1])))
         pygame.draw.circle(surface, [255, 0, 0, 255], (w_pos, h_pos), 6, 0)
         for agent in self._agent_positions:
             if agent.HasField('vehicle'):
@@ -434,9 +683,9 @@ class CarlaGame(object):
                     agent.vehicle.transform.location.y,
                     agent.vehicle.transform.location.z])
                 w_pos = int(
-                    agent_position[0]*(float(WINDOW_HEIGHT)/float(self._map_shape[0])))
+                    agent_position[0] * (float(WINDOW_HEIGHT) / float(self._map_shape[0])))
                 h_pos = int(
-                    agent_position[1] * (new_window_width/float(self._map_shape[1])))
+                    agent_position[1] * (new_window_width / float(self._map_shape[1])))
                 pygame.draw.circle(
                     surface, [255, 0, 255, 255], (w_pos, h_pos), 4, 0)
         self._display.blit(surface, (WINDOW_WIDTH, 0))

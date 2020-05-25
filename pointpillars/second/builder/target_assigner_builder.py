@@ -1,9 +1,9 @@
 import numpy as np
 
-from second.core.target_assigner import TargetAssigner
-from second.protos import target_pb2, anchors_pb2
-from second.builder import similarity_calculator_builder
-from second.builder import anchor_generator_builder
+from pointpillars.second.core.target_assigner import TargetAssigner
+from pointpillars.second.protos import target_pb2, anchors_pb2
+from pointpillars.second.builder import similarity_calculator_builder
+from pointpillars.second.builder import anchor_generator_builder
 
 def build(target_assigner_config, bv_range, box_coder):
     """Builds a tensor dictionary based on the InputReader config.

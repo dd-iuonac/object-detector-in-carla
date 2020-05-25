@@ -93,6 +93,45 @@ def save_lidar_data(filename, point_cloud, LIDAR_HEIGHT, format="bin"):
         lidar_measurement.point_cloud.save_to_disk(filename)
 
 
+def get_lidar_data(point_cloud):
+    """ Saves lidar data to given filename, according to the lidar data format.
+        bin is used for KITTI-data format, while .ply is the regular point cloud format
+        In Unreal, the coordinate system of the engine is defined as, which is the same as the lidar points
+        z
+        ^   ^ x
+        |  /
+        | /
+        |/____> y
+        This is a left-handed coordinate system, with x being forward, y to the right and z up
+        See also https://github.com/carla-simulator/carla/issues/498
+        However, the lidar coordinate system from KITTI is defined as
+              z
+              ^   ^ x
+              |  /
+              | /
+        y<____|/
+        Which is a right handed coordinate sylstem
+        Therefore, we need to flip the y axis of the lidar in order to get the correct lidar format for kitti.
+
+        This corresponds to the following changes from Carla to Kitti
+            Carla: X   Y   Z
+            KITTI: X  -Y   Z
+        NOTE: We do not flip the coordinate system when saving to .ply.
+    """
+    logging.info("Get lidar data")
+
+    lidar_array = [[point[0], -point[1], point[2], 1.0]
+                   for point in point_cloud]
+    lidar_array = np.array(lidar_array).astype(np.float32)
+    logging.debug("Lidar min/max of x: {} {}".format(
+                  lidar_array[:, 0].min(), lidar_array[:, 0].max()))
+    logging.debug("Lidar min/max of y: {} {}".format(
+                  lidar_array[:, 1].min(), lidar_array[:, 0].max()))
+    logging.debug("Lidar min/max of z: {} {}".format(
+                  lidar_array[:, 2].min(), lidar_array[:, 0].max()))
+    return lidar_array
+
+
 def save_kitti_data(filename, datapoints):
     with open(filename, 'w') as f:
         out_str = "\n".join([str(point) for point in datapoints if point])

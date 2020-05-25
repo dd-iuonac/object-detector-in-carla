@@ -1,17 +1,13 @@
 import math
-from functools import reduce
-
 import numpy as np
 import torch
-from torch import FloatTensor as FTensor
 from torch import stack as tstack
 
-import torchplus
-from torchplus.tools import torch_to_np_dtype
-from second.core.box_np_ops import iou_jit
-from second.core.non_max_suppression.nms_gpu import (nms_gpu, rotate_iou_gpu,
-                                                       rotate_nms_gpu)
-from second.core.non_max_suppression.nms_cpu import rotate_nms_cc
+import pointpillars.torchplus
+from pointpillars.torchplus.tools import torch_to_np_dtype
+from pointpillars.second.core.box_np_ops import iou_jit
+from pointpillars.second.core.non_max_suppression.nms_gpu import (nms_gpu, rotate_iou_gpu, rotate_nms_gpu)
+from pointpillars.second.core.non_max_suppression.nms_cpu import rotate_nms_cc
 
 
 def second_box_encode(boxes, anchors, encode_angle_to_vector=False, smooth_dim=False):

@@ -12,7 +12,7 @@ from google.protobuf import symbol_database as _symbol_database
 _sym_db = _symbol_database.Default()
 
 
-from second.protos import second_pb2 as second_dot_protos_dot_second__pb2
+from pointpillars.second.protos import second_pb2 as second_dot_protos_dot_second__pb2
 
 
 DESCRIPTOR = _descriptor.FileDescriptor(

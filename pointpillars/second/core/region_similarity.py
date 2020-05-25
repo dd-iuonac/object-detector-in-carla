@@ -21,7 +21,7 @@ between the boxes in two BoxLists.
 from abc import ABCMeta
 from abc import abstractmethod
 
-from second.core import box_np_ops
+from pointpillars.second.core import box_np_ops
 
 class RegionSimilarityCalculator(object):
   """Abstract base class for 2d region similarity calculator."""

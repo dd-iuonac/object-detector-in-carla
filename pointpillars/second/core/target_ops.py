@@ -4,7 +4,7 @@ import numba
 import numpy as np
 import numpy.random as npr
 
-import second.core.box_np_ops as box_np_ops
+import pointpillars.second.core.box_np_ops as box_np_ops
 
 logger = logging.getLogger(__name__)
 

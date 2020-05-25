@@ -15,9 +15,9 @@
 """VoxelNet builder.
 """
 
-from second.protos import second_pb2
-from second.pytorch.builder import losses_builder
-from second.pytorch.models.voxelnet import LossNormType, VoxelNet
+from pointpillars.second.protos import second_pb2
+from pointpillars.second.pytorch.builder import losses_builder
+from pointpillars.second.pytorch.models.voxelnet import LossNormType, VoxelNet
 
 
 def build(model_cfg: second_pb2.VoxelNet, voxel_generator,

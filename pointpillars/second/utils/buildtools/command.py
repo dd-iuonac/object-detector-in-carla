@@ -1,5 +1,4 @@
 import multiprocessing
-import os
 import re
 import subprocess
 from concurrent.futures import ProcessPoolExecutor
@@ -7,9 +6,8 @@ from enum import Enum
 from functools import partial
 from pathlib import Path
 
-import fire
 
-from second.utils.find import find_cuda, find_cuda_device_arch
+from pointpillars.second.utils.find import find_cuda, find_cuda_device_arch
 
 
 class Gpp:

@@ -1,9 +1,8 @@
 import pickle
 
-import second.core.preprocess as prep
-from second.builder import preprocess_builder
-from second.core.preprocess import DataBasePreprocessor
-from second.core.sample_ops import DataBaseSamplerV2
+from pointpillars.second.builder import preprocess_builder
+from pointpillars.second.core.preprocess import DataBasePreprocessor
+from pointpillars.second.core.sample_ops import DataBaseSamplerV2
 
 
 def build(sampler_config):
