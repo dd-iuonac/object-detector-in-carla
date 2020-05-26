@@ -36,6 +36,7 @@ from pointpillars.second.create_data import _create_reduced_point_cloud
 from pointpillars.second.data.kitti_common import _extend_matrix, add_difficulty_to_annos, get_velodyne_path, \
     get_image_path, get_label_path, get_label_anno, get_calib_path
 from pointpillars.second.pytorch.inference import TorchInferenceContext
+from utils.camera_utils import draw_3d_bounding_box
 
 try:
     import pygame
@@ -58,7 +59,7 @@ from carla.transform import Transform
 
 from utils.timer import Timer
 from core.dataexport import *
-from core.bounding_box import create_kitti_data_point
+from core.bounding_box import create_kitti_data_point, vertices_to_2d_coords
 from utils.carla_utils import KeyboardHelper, MeasurementsDisplayHelper
 from core.constants import *
 from core.settings import make_carla_settings
@@ -584,7 +585,7 @@ class CarlaGame(object):
                     self._update_agent_location()
                     # Save screen, lidar and kitti training labels together with calibration and groundplane files
                     self._save_training_files(datapoints, point_cloud)
-                    self._get_predictions()
+                    self._get_predictions(image)
                     self.captured_frame_no += 1
                     self._captured_frames_since_restart += 1
                     self._frames_since_last_capture = 0
@@ -597,7 +598,7 @@ class CarlaGame(object):
                 logging.debug(
                     "Could not save training data - no visible agents of selected classes in scene")
 
-    def _get_predictions(self):
+    def _get_predictions(self, image):
         carla_info = get_carla_info(idx=self.captured_frame_no,
                                     path="_out",
                                     training=False,
@@ -612,6 +613,18 @@ class CarlaGame(object):
         with self.torchInference.ctx():
             det_annos = self.torchInference.inference(inputs)[0]
             print(det_annos)
+        vertices = vertices_to_2d_coords(bbox=det_annos["bbox"],
+                                         intrinsic_mat=det_annos["dimensions"],
+                                         extrinsic_mat=det_annos["location"])
+        draw_3d_bounding_box(image, vertices)
+
+        # Display image
+        surface = pygame.surfarray.make_surface(image.swapaxes(0, 1))
+        self._display.blit(surface, (0, 0))
+        if self._map_view is not None:
+            self._display_agents(self._map_view)
+        pygame.display.flip()
+
         # self.draw_detection(det_annos[0])
 
     def _distance_since_last_recording(self):
