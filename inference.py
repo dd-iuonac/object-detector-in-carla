@@ -32,6 +32,7 @@ import pathlib
 from skimage import io
 
 from pointpillars.second.core import box_np_ops
+from pointpillars.second.core.box_np_ops import corners_nd, center_to_corner_box3d
 from pointpillars.second.create_data import _create_reduced_point_cloud
 from pointpillars.second.data.kitti_common import _extend_matrix, add_difficulty_to_annos, get_velodyne_path, \
     get_image_path, get_label_path, get_label_anno, get_calib_path
@@ -89,6 +90,34 @@ LIDAR_PATH = os.path.join(OUTPUT_FOLDER, 'velodyne/{0:06}.bin')
 LABEL_PATH = os.path.join(OUTPUT_FOLDER, 'label_2/{0:06}.txt')
 IMAGE_PATH = os.path.join(OUTPUT_FOLDER, 'image_2/{0:06}.png')
 CALIBRATION_PATH = os.path.join(OUTPUT_FOLDER, 'calib/{0:06}.txt')
+
+#
+# def center_to_corner_box3d(centers,
+#                            dims,
+#                            angles=None,
+#                            origin=[0.5, 1.0, 0.5],
+#                            axis=1):
+#     """convert kitti locations, dimensions and angles to corners
+#
+#     Args:
+#         centers (float array, shape=[N, 3]): locations in kitti label file.
+#         dims (float array, shape=[N, 3]): dimensions in kitti label file.
+#         angles (float array, shape=[N]): rotation_y in kitti label file.
+#         origin (list or array or float): origin point relate to smallest point.
+#             use [0.5, 1.0, 0.5] in camera and [0.5, 0.5, 0] in lidar.
+#         axis (int): rotation axis. 1 for camera and 2 for lidar.
+#     Returns:
+#         [type]: [description]
+#     """
+#     # 'length' in kitti format is in x axis.
+#     # yzx(hwl)(kitti label file)<->xyz(lhw)(camera)<->z(-x)(-y)(wlh)(lidar)
+#     # center in kitti format is [0.5, 1.0, 0.5] in xyz.
+#     corners = corners_nd(dims, origin=origin)
+#     # corners: [N, 8, 3]
+#     if angles is not None:
+#         corners = rotation_3d_in_axis(corners, angles, axis=axis)
+#     corners += centers.reshape([-1, 1, 3])
+#     return corners
 
 
 def carla_anno_to_corners(info, annos=None):
@@ -424,12 +453,9 @@ class CarlaGame(object):
     def _on_loop(self):
         self._timer.tick()
         measurements, sensor_data = self.client.read_data()
-        # logging.info("Frame no: {}, = {}".format(self.captured_frame_no,
-        #                                         (self.captured_frame_no + 1) % NUM_RECORDINGS_BEFORE_RESET))
-        # Reset the environment if the agent is stuck or can't find any agents or if we have captured enough frames in this one
         is_stuck = self._frames_since_last_capture >= NUM_EMPTY_FRAMES_BEFORE_RESET
-        is_enough_datapoints = (
-                                       self._captured_frames_since_restart + 1) % NUM_RECORDINGS_BEFORE_RESET == 0
+        is_stuck = False
+        is_enough_datapoints = (self._captured_frames_since_restart + 1) % NUM_RECORDINGS_BEFORE_RESET == 0
 
         if (is_stuck or is_enough_datapoints) and GEN_DATA:
             logging.warning("Is stucK: {}, is_enough_datapoints: {}".format(
@@ -558,14 +584,23 @@ class CarlaGame(object):
             if self._det_annos is not None:
                 scores = self._det_annos["score"]
                 b_boxes = self._det_annos["bbox"]
+                dimens = self._det_annos["dimensions"]
+                location = self._det_annos["location"]
                 for i, score in enumerate(scores):
-                    if score * 100 > 55:
+                    if score * 100 > 50:
                         bbox = b_boxes[i]
                         pygame.draw.rect(surface, (0, 0, 255), (bbox[0], bbox[1], bbox[2] - bbox[0], bbox[3] - bbox[1]),
                                          3)
+                #
+                # for i in range(len(self._det_annos)):
+                #     bbox3d = center_to_corner_box3d(centers=location[i], dims=dimens[i])
+                #     vertices = vertices_to_2d_coords(bbox3d, self._intrinsic, self._extrinsic.matrix)
+                #     draw_3d_bounding_box(image, vertices, color=(0, 0, 255))
+
             # if self._dt_boxes_corners is not None:
-            #     for vertices in self._dt_boxes_corners:
-            #         draw_3d_bounding_box(image, vertices, color=(0, 0, 255))
+            #     center_to_corner_box3d(self._det_annos[])
+            #     vertices = vertices_to_2d_coords(self._dt_boxes_corners, self._intrinsic, self._extrinsic.matrix)
+            #     draw_3d_bounding_box(image, vertices, color=(0, 0, 255))
 
             self._display.blit(surface, (0, 0))
             if self._map_view is not None:
@@ -573,11 +608,11 @@ class CarlaGame(object):
             pygame.display.flip()
 
             # Determine whether to save files
-            distance_driven = self._distance_since_last_recording()
+            # distance_driven = self._distance_since_last_recording()
             # print("Distance driven since last recording: {}".format(distance_driven))
-            has_driven_long_enough = distance_driven is None or distance_driven > DISTANCE_SINCE_LAST_RECORDING
+            # has_driven_long_enough = distance_driven is None or distance_driven > DISTANCE_SINCE_LAST_RECORDING
             if (self._timer.step + 1) % STEPS_BETWEEN_RECORDINGS == 0:
-                if has_driven_long_enough and datapoints:
+                if datapoints:
                     # Avoid doing this twice or unnecessarily often
                     if not VISUALIZE_LIDAR:
                         # Calculation to shift bboxes relative to pitch and roll of player
@@ -619,8 +654,8 @@ class CarlaGame(object):
                     self._frames_since_last_capture = 0
                 else:
                     logging.debug(
-                        "Could save datapoint, but agent has not driven {} meters since last recording (Currently {} meters)".format(
-                            DISTANCE_SINCE_LAST_RECORDING, distance_driven))
+                        "Could save datapoint".format(
+                            DISTANCE_SINCE_LAST_RECORDING))
             else:
                 self._frames_since_last_capture += 1
                 logging.debug(
