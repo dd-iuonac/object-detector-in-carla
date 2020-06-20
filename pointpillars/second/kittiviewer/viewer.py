@@ -1,27 +1,17 @@
 import io as sysio
 import json
-import os
 import pickle
 import sys
 import time
 from functools import partial
 from pathlib import Path
 import datetime
-import fire
-import matplotlib.pyplot as plt
-import numba
 import numpy as np
-import OpenGL.GL as pygl
-import pyqtgraph.opengl as gl
-import skimage
 from matplotlib.backends.backend_qt5agg import \
     FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import \
     NavigationToolbar2QT as NavigationToolbar
 from matplotlib.figure import Figure
-from PyQt5 import QtCore, QtGui
-from PyQt5.QtCore import QTimer, pyqtSignal, pyqtSlot
-from PyQt5.QtGui import QIcon, QMouseEvent, QPainter
 from PyQt5.QtWidgets import (
     QApplication, QCheckBox, QComboBox, QDialog, QFormLayout, QGroupBox,
     QHBoxLayout, QLabel, QLineEdit, QMainWindow, QPlainTextEdit, QTextEdit,
@@ -29,24 +19,23 @@ from PyQt5.QtWidgets import (
 from shapely.geometry import Polygon
 from skimage import io
 
-import second.core.box_np_ops as box_np_ops
-import second.core.preprocess as prep
-import second.kittiviewer.control_panel as panel
-from second.core.anchor_generator import AnchorGeneratorStride
-from second.core.box_coders import GroundBox3dCoder
-from second.core.point_cloud.point_cloud_ops import points_to_voxel
-from second.core.region_similarity import (
+import pointpillars.second.core.box_np_ops as box_np_ops
+import pointpillars.second.core.preprocess as prep
+import pointpillars.second.kittiviewer.control_panel as panel
+from pointpillars.second.core.anchor_generator import AnchorGeneratorStride
+from pointpillars.second.core.box_coders import GroundBox3dCoder
+from pointpillars.second.core.point_cloud.point_cloud_ops import points_to_voxel
+from pointpillars.second.core.region_similarity import (
     DistanceSimilarity, NearestIouSimilarity, RotateIouSimilarity)
-from second.core.sample_ops import DataBaseSamplerV2
-from second.core.target_assigner import TargetAssigner
-from second.data import kitti_common as kitti
-from second.kittiviewer.glwidget import KittiGLViewWidget
-from second.protos import pipeline_pb2
-from second.utils import bbox_plot
-from second.utils.bbox_plot import GLColor
-from second.utils.eval import get_coco_eval_result, get_official_eval_result
-from second.pytorch.inference import TorchInferenceContext
-from second.utils.progress_bar import list_bar
+from pointpillars.second.core.sample_ops import DataBaseSamplerV2
+from pointpillars.second.core.target_assigner import TargetAssigner
+from pointpillars.second.data import kitti_common as kitti
+from pointpillars.second.kittiviewer.glwidget import KittiGLViewWidget
+from pointpillars.second.utils import bbox_plot
+from pointpillars.second.utils.bbox_plot import GLColor
+from pointpillars.second.utils.eval import get_coco_eval_result, get_official_eval_result
+from pointpillars.second.pytorch.inference import TorchInferenceContext
+from pointpillars.second.utils.progress_bar import list_bar
 """
 from wavedata.tools.obj_detection import obj_utils
 from avod.core.anchor_generators import grid_anchor_3d_generator

@@ -49,7 +49,7 @@ def proj_to_2d(camera_pos_vector, intrinsic_mat):
     return pos2d
 
 
-def draw_3d_bounding_box(array, vertices_pos2d):
+def draw_3d_bounding_box(array, vertices_pos2d, color=(255, 0, 0)):
     """ Draws lines from each vertex to all connected vertices """
     # Shows which verticies that are connected so that we can draw lines between them
     # The key of the dictionary is the index in the bbox array, and the corresponding value is a list of indices
@@ -76,7 +76,7 @@ def draw_3d_bounding_box(array, vertices_pos2d):
                 continue
             for x, y in get_line(x1, y1, x2, y2):
                 if point_in_canvas((y, x)):
-                    array[int(y), int(x)] = (255, 0, 0)
+                    array[int(y), int(x)] = color
 
 
 def point_in_canvas(pos):
@@ -130,6 +130,17 @@ def draw_rect(array, pos, size, color=(255, 0, 255)):
     if point_in_canvas(point_0) and point_in_canvas(point_1):
         for i in range(size):
             for j in range(size):
+                array[int(point_0[0]+i), int(point_0[1]+j)] = color
+
+
+def draw_rectangle(array, x, y, w, h, color=(0, 255, 0)):
+    """Draws a rect"""
+    # x1, y1, x2 - x1, y2 - y1
+    point_0 = (x-w/2, y-h/2)
+    point_1 = (x+w/2, y+h/2)
+    if point_in_canvas(point_0) and point_in_canvas(point_1):
+        for i in range(w):
+            for j in range(h):
                 array[int(point_0[0]+i), int(point_0[1]+j)] = color
 
 

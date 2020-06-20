@@ -1,6 +1,5 @@
 import time
 from enum import Enum
-from functools import reduce
 
 import numpy as np
 import sparseconvnet as scn
@@ -8,7 +7,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-import pointpillars.torchplus
+from pointpillars import torchplus
 from pointpillars.torchplus import metrics
 from pointpillars.torchplus.nn import Empty, GroupNorm, Sequential
 from pointpillars.torchplus.ops.array_ops import gather_nd, scatter_nd
