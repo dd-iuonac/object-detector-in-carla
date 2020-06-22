@@ -1,30 +1,21 @@
 import tensorflow as tf
-import sys, os
-import numpy as np
-import cv2
-import itertools
-import pickle
-import time
 import json
 import subprocess
 import tqdm
 
-from core.config import cfg
-import utils.kitti_aug as kitti_aug
-import utils.box_3d_utils as box_3d_utils
-import dataset.maps_dict as maps_dict
+from dddssd.lib.core.config import cfg
+import dddssd.lib.dataset.maps_dict as maps_dict
 
-from dataset.dataloader.nuscenes_utils import * 
-from dataset.dataloader.nuscenes_split import *
-from utils.voxelnet_aug import check_inside_points
-from utils.anchor_encoder import encode_angle2class_np
-from builder.voxel_generator.voxel_generator import VoxelGenerator
-from builder.data_augmentor import DataAugmentor
-from nuscenes.nuscenes import NuScenes
-from nuscenes.utils.data_classes import LidarPointCloud, RadarPointCloud, Box
+from dddssd.lib.dataset.dataloader.nuscenes_utils import *
+from dddssd.lib.dataset.dataloader.nuscenes_split import *
+from dddssd.lib.utils.voxelnet_aug import check_inside_points
+from dddssd.lib.utils.anchor_encoder import encode_angle2class_np
+from dddssd.lib.builder.voxel_generator.voxel_generator import VoxelGenerator
+from dddssd.lib.builder.data_augmentor import DataAugmentor
 from pyquaternion import Quaternion
-from dataset.data_provider.data_provider import DataFromList, MultiProcessMapData, BatchDataNuscenes
-from dataset.dataloader.dataloader import Dataset
+from dddssd.lib.dataset.data_provider.data_provider import DataFromList, MultiProcessMapData, BatchDataNuscenes
+from dddssd.lib.dataset.dataloader.dataloader import Dataset
+
 
 class NuScenesDataset(Dataset):
     """

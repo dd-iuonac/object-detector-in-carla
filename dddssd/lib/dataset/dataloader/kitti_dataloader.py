@@ -79,7 +79,8 @@ class KittiDataset(Dataset):
 
             self.extents = cfg.DATASET.POINT_CLOUD_RANGE
             self.extents = np.reshape(self.extents, [3, 2])
-            if not os.path.exists(self.sv_npy_path): os.makedirs(self.sv_npy_path)
+            if not os.path.exists(self.sv_npy_path):
+                os.makedirs(self.sv_npy_path)
 
             # the save path for MixupDB
             if self.img_list in ['train', 'val', 'trainval'] and cfg.TEST.WITH_GT and cfg.TRAIN.AUGMENTATIONS.MIXUP.OPEN:

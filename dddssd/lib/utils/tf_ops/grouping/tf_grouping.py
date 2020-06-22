@@ -3,13 +3,10 @@ from tensorflow.python.framework import ops
 import sys
 import os
 
-# debugging
-import numpy as np
-from core.config import cfg
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(BASE_DIR)
-grouping_module=tf.load_op_library(os.path.join(BASE_DIR, 'tf_grouping_so.so'))
+grouping_module = tf.load_op_library(os.path.join(BASE_DIR, 'tf_grouping_so.so'))
 
 
 def query_boxes_3d_mask(xyz, boxes_3d):
@@ -23,6 +20,7 @@ def query_boxes_3d_mask(xyz, boxes_3d):
     return grouping_module.query_boxes3d_mask(xyz, boxes_3d)
 ops.NoGradient('QueryBoxes3dMask')
 
+
 def query_points_iou(xyz, anchors_3d, gt_boxes_3d, iou_matrix):
     """ Calculate the PointsIoU between anchors_3d and gt_boxes_3d
     Input
@@ -35,6 +33,7 @@ def query_points_iou(xyz, anchors_3d, gt_boxes_3d, iou_matrix):
     """
     return grouping_module.query_points_iou(xyz, anchors_3d, gt_boxes_3d, iou_matrix)
 ops.NoGradient('QueryPointsIou')
+
 
 def query_boxes_3d_points(nsample, xyz, proposals):
     """
@@ -64,6 +63,7 @@ def query_ball_point(radius, nsample, xyz1, xyz2):
     return grouping_module.query_ball_point(xyz1, xyz2, radius, nsample)
 
 ops.NoGradient('QueryBallPoint')
+
 
 def query_ball_point_dilated(min_radius, max_radius, nsample, xyz1, xyz2):
     """

@@ -27,17 +27,9 @@ STARTING in a moment...
 """
 
 import argparse
-import pathlib
 
-from skimage import io
-
-from pointpillars.second.core import box_np_ops
-from pointpillars.second.core.box_np_ops import corners_nd, center_to_corner_box3d
-from pointpillars.second.create_data import _create_reduced_point_cloud
-from pointpillars.second.data.kitti_common import _extend_matrix, add_difficulty_to_annos, get_velodyne_path, \
-    get_image_path, get_label_path, get_label_anno, get_calib_path
-from pointpillars.second.pytorch.inference import TorchInferenceContext
-from utils.camera_utils import draw_3d_bounding_box, draw_rectangle
+from dddssd.lib.core.config import cfg_from_file, cfg
+from dddssd.lib.core.inference import Evaluator
 
 try:
     import pygame
@@ -60,7 +52,7 @@ from carla.transform import Transform
 
 from utils.timer import Timer
 from core.dataexport import *
-from core.bounding_box import create_kitti_data_point, vertices_to_2d_coords
+from core.bounding_box import create_kitti_data_point
 from utils.carla_utils import KeyboardHelper, MeasurementsDisplayHelper
 from core.constants import *
 from core.settings import make_carla_settings
@@ -68,13 +60,10 @@ from utils import lidar_utils, vector3d_to_array, degrees_to_radians
 import time
 from math import cos, sin
 
-
-CONFIG_FILE = "pointpillars/second/configs/carla/car/xyres_16.proto"
-MODEL_PATH = "pointpillars/models/carla_model_1_AP_67.20/voxelnet-296960.tckpt"
-
+MODEL_PATH = "dddssd/log/2020-05-23 11:49:17.807186/model-142032"
+CONFIG_FILE = "dddssd/configs/carla/3dssd/3dssd.yaml"
 
 """ OUTPUT FOLDER GENERATION """
-# PHASE = "training"
 PHASE = "testing"
 OUTPUT_FOLDER = os.path.join("_out", PHASE)
 folders = ['calib', 'image_2', 'label_2', 'velodyne', 'planes']
@@ -96,265 +85,9 @@ LABEL_PATH = os.path.join(OUTPUT_FOLDER, 'label_2/{0:06}.txt')
 IMAGE_PATH = os.path.join(OUTPUT_FOLDER, 'image_2/{0:06}.png')
 CALIBRATION_PATH = os.path.join(OUTPUT_FOLDER, 'calib/{0:06}.txt')
 
-#
-# def center_to_corner_box3d(centers,
-#                            dims,
-#                            angles=None,
-#                            origin=[0.5, 1.0, 0.5],
-#                            axis=1):
-#     """convert kitti locations, dimensions and angles to corners
-#
-#     Args:
-#         centers (float array, shape=[N, 3]): locations in kitti label file.
-#         dims (float array, shape=[N, 3]): dimensions in kitti label file.
-#         angles (float array, shape=[N]): rotation_y in kitti label file.
-#         origin (list or array or float): origin point relate to smallest point.
-#             use [0.5, 1.0, 0.5] in camera and [0.5, 0.5, 0] in lidar.
-#         axis (int): rotation axis. 1 for camera and 2 for lidar.
-#     Returns:
-#         [type]: [description]
-#     """
-#     # 'length' in kitti format is in x axis.
-#     # yzx(hwl)(kitti label file)<->xyz(lhw)(camera)<->z(-x)(-y)(wlh)(lidar)
-#     # center in kitti format is [0.5, 1.0, 0.5] in xyz.
-#     corners = corners_nd(dims, origin=origin)
-#     # corners: [N, 8, 3]
-#     if angles is not None:
-#         corners = rotation_3d_in_axis(corners, angles, axis=axis)
-#     corners += centers.reshape([-1, 1, 3])
-#     return corners
-
-
-def carla_anno_to_corners(info, annos=None):
-    rect = info['calib/R0_rect']
-    P2 = info['calib/P2']
-    Tr_velo_to_cam = info['calib/Tr_velo_to_cam']
-    if annos is None:
-        annos = info['annos']
-    dims = annos['dimensions']
-    loc = annos['location']
-    rots = annos['rotation_y']
-    scores = None
-    if 'score' in annos:
-        scores = annos['score']
-    boxes_camera = np.concatenate([loc, dims, rots[..., np.newaxis]], axis=1)
-    boxes_lidar = box_np_ops.box_camera_to_lidar(boxes_camera, rect,
-                                                 Tr_velo_to_cam)
-    boxes_corners = box_np_ops.center_to_corner_box3d(
-        boxes_lidar[:, :3],
-        boxes_lidar[:, 3:6],
-        boxes_lidar[:, 6],
-        origin=[0.5, 0.5, 0],
-        axis=2)
-    return boxes_corners, scores, boxes_lidar
-
-
-def get_carla_info(
-        idx,
-        path,
-        training=True,
-        label_info=True,
-        velodyne=False,
-        calib=False,
-        extend_matrix=True,
-        relative_path=True,
-        with_imageshape=True):
-    root_path = pathlib.Path(path)
-    image_info = {'image_idx': idx, 'pointcloud_num_features': 4}
-    annotations = None
-    if velodyne:
-        image_info['velodyne_path'] = get_velodyne_path(
-            idx, path, training, relative_path)
-    image_info['img_path'] = get_image_path(idx, path, training,
-                                            relative_path)
-    if with_imageshape:
-        img_path = image_info['img_path']
-        if relative_path:
-            img_path = str(root_path / img_path)
-        image_info['img_shape'] = np.array(
-            io.imread(img_path).shape[:2], dtype=np.int32)
-    if label_info:
-        label_path = get_label_path(idx, path, training, relative_path)
-        if relative_path:
-            label_path = str(root_path / label_path)
-        annotations = get_label_anno(label_path)
-    if calib:
-        calib_path = get_calib_path(
-            idx, path, training, relative_path=False)
-        with open(calib_path, 'r') as f:
-            lines = f.readlines()
-        P0 = np.array(
-            [float(info) for info in lines[0].split(' ')[1:13]]).reshape(
-            [3, 4])
-        P1 = np.array(
-            [float(info) for info in lines[1].split(' ')[1:13]]).reshape(
-            [3, 4])
-        P2 = np.array(
-            [float(info) for info in lines[2].split(' ')[1:13]]).reshape(
-            [3, 4])
-        P3 = np.array(
-            [float(info) for info in lines[3].split(' ')[1:13]]).reshape(
-            [3, 4])
-        if extend_matrix:
-            P0 = _extend_matrix(P0)
-            P1 = _extend_matrix(P1)
-            P2 = _extend_matrix(P2)
-            P3 = _extend_matrix(P3)
-        image_info['calib/P0'] = P0
-        image_info['calib/P1'] = P1
-        image_info['calib/P2'] = P2
-        image_info['calib/P3'] = P3
-        R0_rect = np.array([
-            float(info) for info in lines[4].split(' ')[1:10]
-        ]).reshape([3, 3])
-        if extend_matrix:
-            rect_4x4 = np.zeros([4, 4], dtype=R0_rect.dtype)
-            rect_4x4[3, 3] = 1.
-            rect_4x4[:3, :3] = R0_rect
-        else:
-            rect_4x4 = R0_rect
-        image_info['calib/R0_rect'] = rect_4x4
-        Tr_velo_to_cam = np.array([
-            float(info) for info in lines[5].split(' ')[1:13]
-        ]).reshape([3, 4])
-        Tr_imu_to_velo = np.array([
-            float(info) for info in lines[6].split(' ')[1:13]
-        ]).reshape([3, 4])
-        if extend_matrix:
-            Tr_velo_to_cam = _extend_matrix(Tr_velo_to_cam)
-            Tr_imu_to_velo = _extend_matrix(Tr_imu_to_velo)
-        image_info['calib/Tr_velo_to_cam'] = Tr_velo_to_cam
-        image_info['calib/Tr_imu_to_velo'] = Tr_imu_to_velo
-    if annotations is not None:
-        image_info['annos'] = annotations
-        add_difficulty_to_annos(image_info)
-    return image_info
-
-
-def _create_reduced_point_cloud(data_path,
-                                info,
-                                save_path=None,
-                                back=False):
-    v_path = info['velodyne_path']
-    v_path = pathlib.Path(data_path) / v_path
-    points_v = np.fromfile(str(v_path), dtype=np.float32, count=-1).reshape([-1, 4])
-    rect = info['calib/R0_rect']
-    P2 = info['calib/P2']
-    Trv2c = info['calib/Tr_velo_to_cam']
-    # first remove z < 0 points
-    # keep = points_v[:, -1] > 0
-    # points_v = points_v[keep]
-    # then remove outside.
-    if back:
-        points_v[:, 0] = -points_v[:, 0]
-    points_v = box_np_ops.remove_outside_points(points_v, rect, Trv2c, P2,
-                                                info["img_shape"])
-    return points_v
-
-# def get_label_anno(lines):
-#     annotations = {}
-#     annotations.update({
-#         'name': [],
-#         'truncated': [],
-#         'occluded': [],
-#         'alpha': [],
-#         'bbox': [],
-#         'dimensions': [],
-#         'location': [],
-#         'rotation_y': []
-#     })
-#     # with open(label_path, 'r') as f:
-#     #     lines = f.readlines()
-#     # if len(lines) == 0 or len(lines[0]) < 15:
-#     #     content = []
-#     # else:
-#     content = [line.strip().split(' ') for line in lines]
-#     num_objects = len([x[0] for x in content if x[0] != 'DontCare'])
-#     annotations['name'] = np.array([x[0] for x in content])
-#     num_gt = len(annotations['name'])
-#     annotations['truncated'] = np.array([float(x[1]) for x in content])
-#     annotations['occluded'] = np.array([int(x[2]) for x in content])
-#     annotations['alpha'] = np.array([float(x[3]) for x in content])
-#     annotations['bbox'] = np.array(
-#         [[float(info) for info in x[4:8]] for x in content]).reshape(-1, 4)
-#     # dimensions will convert hwl format to standard lhw(camera) format.
-#     annotations['dimensions'] = np.array(
-#         [[float(info) for info in x[8:11]] for x in content]).reshape(
-#             -1, 3)[:, [2, 0, 1]]
-#     annotations['location'] = np.array(
-#         [[float(info) for info in x[11:14]] for x in content]).reshape(-1, 3)
-#     annotations['rotation_y'] = np.array(
-#         [float(x[14]) for x in content]).reshape(-1)
-#     if len(content) != 0 and len(content[0]) == 16:  # have score
-#         annotations['score'] = np.array([float(x[15]) for x in content])
-#     else:
-#         annotations['score'] = np.zeros((annotations['bbox'].shape[0], ))
-#     index = list(range(num_objects)) + [-1] * (num_gt - num_objects)
-#     annotations['index'] = np.array(index, dtype=np.int32)
-#     annotations['group_ids'] = np.arange(num_gt, dtype=np.int32)
-#     return annotations
-#
-#
-# def get_kitti_image_info(label, image, calib):
-#     image_info = {'image_idx': 0, 'pointcloud_num_features': 4}
-#     annotations = None
-#     image_info['img_shape'] = np.array(image.shape[:2], dtype=np.int32)
-#     annotations = get_label_anno(label)
-#
-#     P0 = np.array(
-#         [float(info) for info in calib[0].split(' ')[1:13]]).reshape(
-#             [3, 4])
-#     P1 = np.array(
-#         [float(info) for info in calib[1].split(' ')[1:13]]).reshape(
-#             [3, 4])
-#     P2 = np.array(
-#         [float(info) for info in calib[2].split(' ')[1:13]]).reshape(
-#             [3, 4])
-#     P3 = np.array(
-#         [float(info) for info in calib[3].split(' ')[1:13]]).reshape(
-#             [3, 4])
-#     P0 = _extend_matrix(P0)
-#     P1 = _extend_matrix(P1)
-#     P2 = _extend_matrix(P2)
-#     P3 = _extend_matrix(P3)
-#     image_info['calib/P0'] = P0
-#     image_info['calib/P1'] = P1
-#     image_info['calib/P2'] = P2
-#     image_info['calib/P3'] = P3
-#
-#     R0_rect = np.array([
-#         float(info) for info in calib[4].split(' ')[1:10]
-#     ]).reshape([3, 3])
-#
-#     rect_4x4 = np.zeros([4, 4], dtype=R0_rect.dtype)
-#     rect_4x4[3, 3] = 1.
-#     rect_4x4[:3, :3] = R0_rect
-#
-#     image_info['calib/R0_rect'] = rect_4x4
-#     Tr_velo_to_cam = np.array([
-#         float(info) for info in calib[5].split(' ')[1:13]
-#     ]).reshape([3, 4])
-#     Tr_imu_to_velo = np.array([
-#         float(info) for info in calib[6].split(' ')[1:13]
-#     ]).reshape([3, 4])
-#     Tr_velo_to_cam = _extend_matrix(Tr_velo_to_cam)
-#     Tr_imu_to_velo = _extend_matrix(Tr_imu_to_velo)
-#     image_info['calib/Tr_velo_to_cam'] = Tr_velo_to_cam
-#     image_info['calib/Tr_imu_to_velo'] = Tr_imu_to_velo
-#
-#     if annotations is not None:
-#         image_info['annos'] = annotations
-#         add_difficulty_to_annos(image_info)
-#     return image_info
-#
-
 
 class CarlaGame(object):
     def __init__(self, carla_client, args):
-        self.torchInference = TorchInferenceContext()
-        self.torchInference.build(CONFIG_FILE)
-        self.torchInference.restore(MODEL_PATH)
-
         self.client = carla_client
         self._carla_settings, self._intrinsic, self._camera_to_car_transform, self._lidar_to_car_transform = make_carla_settings(
             args)
@@ -375,7 +108,7 @@ class CarlaGame(object):
             WINDOW_HEIGHT) if self._city_name is not None else None
         self._position = None
         self._agent_positions = None
-        self.captured_frame_no = self.current_captured_frame_num()
+        self.captured_frame_no = 0
         self._measurements = None
         self._extrinsic = None
         # To keep track of how far the car has driven since the last capture of data
@@ -384,31 +117,17 @@ class CarlaGame(object):
         # How many frames we have captured since reset
         self._captured_frames_since_restart = 0
         self._det_annos = None
-        self._dt_boxes_corners = None
-        self._carla_info = None
-        self._exists_vehicles = False
+        self._build_network()
 
-    def current_captured_frame_num(self):
-        # Figures out which frame number we currently are on
-        # This is run once, when we start the simulator in case we already have a dataset.
-        # The user can then choose to overwrite or append to the dataset.
-        label_path = os.path.join(OUTPUT_FOLDER, 'label_2/')
-        num_existing_data_files = len(
-            [name for name in os.listdir(label_path) if name.endswith('.txt')])
-        print(num_existing_data_files)
-        if num_existing_data_files == 0:
-            return 0
-        answer = input(
-            "There already exists a dataset in {}. Would you like to (O)verwrite or (A)ppend the dataset? (O/A)".format(
-                OUTPUT_FOLDER))
-        if answer.upper() == "O":
-            logging.info(
-                "Resetting frame number to 0 and overwriting existing")
-            # Overwrite the data
-            return 0
-        logging.info("Continuing recording data on frame number {}".format(
-            num_existing_data_files))
-        return num_existing_data_files
+    def _build_network(self):
+        cfg_from_file(CONFIG_FILE)
+        # set bs, gpu_num and workers_num to be 1
+        cfg.TRAIN.CONFIG.BATCH_SIZE = 1  # only support bs=1 when testing
+        cfg.TRAIN.CONFIG.GPU_NUM = 1
+        cfg.DATA_LOADER.NUM_THREADS = 1
+        cfg.TEST.WITH_GT = False
+
+        self.evaluator = Evaluator(config=cfg, model_path=MODEL_PATH)
 
     def execute(self):
         """Launch the PyGame."""
@@ -593,20 +312,10 @@ class CarlaGame(object):
                 dimens = self._det_annos["dimensions"]
                 location = self._det_annos["location"]
                 for i, score in enumerate(scores):
-                    if score * 100 > 50:
+                    if score * 100 > 30:
                         bbox = b_boxes[i]
                         pygame.draw.rect(surface, (0, 0, 255), (bbox[0], bbox[1], bbox[2] - bbox[0], bbox[3] - bbox[1]),
                                          3)
-                #
-                # for i in range(len(self._det_annos)):
-                #     bbox3d = center_to_corner_box3d(centers=location[i], dims=dimens[i])
-                #     vertices = vertices_to_2d_coords(bbox3d, self._intrinsic, self._extrinsic.matrix)
-                #     draw_3d_bounding_box(image, vertices, color=(0, 0, 255))
-
-            # if self._dt_boxes_corners is not None:
-            #     center_to_corner_box3d(self._det_annos[])
-            #     vertices = vertices_to_2d_coords(self._dt_boxes_corners, self._intrinsic, self._extrinsic.matrix)
-            #     draw_3d_bounding_box(image, vertices, color=(0, 0, 255))
 
             self._display.blit(surface, (0, 0))
             if self._map_view is not None:
@@ -654,7 +363,6 @@ class CarlaGame(object):
                     # Save screen, lidar and kitti training labels together with calibration and groundplane files
                     self._save_training_files(datapoints, point_cloud)
                     self._get_predictions(image)
-                    self._exists_vehicles = True
                     self.captured_frame_no += 1
                     self._captured_frames_since_restart += 1
                     self._frames_since_last_capture = 0
@@ -667,51 +375,8 @@ class CarlaGame(object):
                 logging.debug(
                     "Could not save training data - no visible agents of selected classes in scene")
 
-    def draw_detection(self, detection_anno):
-        if self._carla_info is None:
-            print("you must load infos and choose a existing image idx first.")
-            return
-
-        rect = self._carla_info['calib/R0_rect']
-        P2 = self._carla_info['calib/P2']
-        Trv2c = self._carla_info['calib/Tr_velo_to_cam']
-
-        # detection_anno = kitti.remove_low_height(detection_anno, 25)
-
-        dt_bboxes = detection_anno["bbox"]
-
-        dt_boxes_corners, scores, dt_box_lidar = carla_anno_to_corners(
-            self._carla_info, detection_anno)
-        self._dt_boxes_corners = dt_boxes_corners
-
     def _get_predictions(self, image):
-        self._carla_info = get_carla_info(idx=self.captured_frame_no,
-                                          path="_out",
-                                          training=False,
-                                          label_info=False,
-                                          velodyne=True,
-                                          calib=True,
-                                          relative_path=True)
-        points = _create_reduced_point_cloud(data_path="_out", info=self._carla_info)
-
-        logging.info("Attempting to predict")
-        inputs = self.torchInference.get_inference_input_dict(self._carla_info, points)
-        with self.torchInference.ctx():
-            self._det_annos = self.torchInference.inference(inputs)[0]
-            print(self._det_annos)
-            self.draw_detection(self._det_annos)
-
-
-    def _distance_since_last_recording(self):
-        if self._agent_location_on_last_capture is None:
-            return None
-        cur_pos = vector3d_to_array(
-            self._measurements.player_measurements.transform.location)
-        last_pos = vector3d_to_array(self._agent_location_on_last_capture)
-
-        def dist_func(x, y): return sum((x - y) ** 2)
-
-        return dist_func(cur_pos, last_pos)
+        self._det_annos = self.evaluator.evaluate(self.captured_frame_no)
 
     def _update_agent_location(self):
         self._agent_location_on_last_capture = self._measurements.player_measurements.transform.location

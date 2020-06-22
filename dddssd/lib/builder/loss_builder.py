@@ -1,15 +1,12 @@
 import tensorflow as tf
-import numpy as np
 
-from core.config import cfg
-from utils.box_3d_utils import transfer_box3d_to_corners
-from utils.tf_ops.sampling.tf_sampling import gather_point
-from utils.tf_ops.evaluation.tf_evaluate import calc_iou_match_warper 
-from utils.rotation_util import rotate_points
-from np_functions.gt_sampler import vote_targets_np
+from dddssd.lib.core.config import cfg
+from dddssd.lib.utils.tf_ops.evaluation.tf_evaluate import calc_iou_match_warper
+from dddssd.lib.utils.rotation_util import rotate_points
+from dddssd.lib.np_functions.gt_sampler import vote_targets_np
 
-import utils.model_util as model_util
-import dataset.maps_dict as maps_dict
+import dddssd.lib.utils.model_util as model_util
+import dddssd.lib.dataset.maps_dict as maps_dict
 
 
 class LossBuilder:

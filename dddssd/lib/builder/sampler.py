@@ -1,8 +1,8 @@
 import tensorflow as tf
-import numpy as np
 
-from core.config import cfg
-from utils.tf_ops.sampling.tf_sampling import gather_by_mask
+from dddssd.lib.core.config import cfg
+from dddssd.lib.utils.tf_ops.sampling.tf_sampling import gather_by_mask
+
 
 class Sampler:
     """

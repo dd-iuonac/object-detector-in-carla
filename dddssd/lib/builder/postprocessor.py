@@ -1,11 +1,11 @@
-import numpy as np
 import tensorflow as tf
 
-from core.config import cfg
-from utils.anchors_util import project_to_bev
-from utils.box_3d_utils import box_3d_to_anchor
+from dddssd.lib.core.config import cfg
+from dddssd.lib.utils.anchors_util import project_to_bev
+from dddssd.lib.utils.box_3d_utils import box_3d_to_anchor
 
-import dataset.maps_dict as maps_dict
+import dddssd.lib.dataset.maps_dict as maps_dict
+
 
 class PostProcessor:
     def __init__(self, stage, cls_num):
