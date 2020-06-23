@@ -60,7 +60,7 @@ from math import cos, sin
 
 
 CONFIG_FILE = "pointpillars/second/configs/carla/car/xyres_16.proto"
-MODEL_PATH = "pointpillars/models/carla_model_1_AP_67.20/voxelnet-296960.tckpt"
+MODEL_PATH = "pointpillars/models/carla_model_1_AP_68.60/voxelnet-890880.tckpt"
 
 
 """ OUTPUT FOLDER GENERATION """
@@ -433,7 +433,7 @@ class CarlaGame(object):
                 for i, box in enumerate(b_boxes):
                     if scores[i] * 100 > 35:
                         x, y, z = location[i]
-                        h, w, l = dimens[i]
+                        h, l, w = dimens[i]
                         ry = rotation_y[i]
 
                         # draw 3D

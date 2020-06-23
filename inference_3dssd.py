@@ -31,8 +31,7 @@ from threading import Thread
 
 from dddssd.lib.core.config import cfg_from_file, cfg
 from dddssd.lib.core.inference import Evaluator
-from utils.camera_utils import draw_3d_bounding_box
-from visualization.kitti_util import draw_projected_box3d, comp_box_3d
+from visualization.kitti_util import draw_projected_box3d
 
 try:
     import pygame
@@ -55,7 +54,7 @@ from carla.transform import Transform
 
 from utils.timer import Timer
 from core.dataexport import *
-from core.bounding_box import create_kitti_data_point, vertices_to_2d_coords
+from core.bounding_box import create_kitti_data_point
 from utils.carla_utils import KeyboardHelper, MeasurementsDisplayHelper
 from core.constants import *
 from core.settings import make_carla_settings
@@ -371,57 +370,37 @@ class CarlaGame(object):
                         point_cloud = np.matmul(rotRP, point_cloud.T).T
                     self._update_agent_location()
                     # Save screen, lidar and kitti training labels together with calibration and groundplane files
-                    self._save_training_files(datapoints, point_cloud)
-                    annos = self.evaluator.evaluate(self.captured_frame_no)
-                    print(annos)
-                    vertices = annos["vertices"]
-                    bbox = annos["bbox"]
-                    dimensions = annos["dimensions"]
-                    location = annos["location"]
+                    # self._save_training_files(datapoints, point_cloud)
+                    img = get_image_data(image_converter.to_rgb_array(self._main_image))
+                    lid = get_lidar_data(point_cloud)
+                    calib = get_calibration_matrices(self._intrinsic, self._extrinsic)
+                    mess = {
+                        "idx": self.captured_frame_no,
+                        "image_2": img,
+                        "velodyne": lid,
+                        "calib": calib
+                    }
+                    annos = self.evaluator.predict(mess)
 
-                    # for i, vert in enumerate(vertices):
-                    #     h, w, l = dimensions[i]
-                    #     x, y, z, ry = location[i]
-                    #     x1, y1, x2, y2 = bbox[i]
-                    #
-                    #     m2 = [
-                    #         [x1, y1, z + h / 2],
-                    #         [x1, y1 + l, z + h / 2],
-                    #         [x1, y1, z - h / 2],
-                    #         [x1, y1+l, z - h / 2],
-                    #         [x2, y2 - l, z + h / 2],
-                    #         [x2, y2, z + h/ 2],
-                    #         [x2, y2 - l, z - h / 2],
-                    #         [x2, y2, z - h / 2]
-                    #     ]
-                    #
-                    #     # v = vertices_to_2d_coords(np.matrix(m2), self._intrinsic, self._extrinsic.matrix)
-                    #     # draw_3d_bounding_box(image, v, (255, 255, 255))
-                    #     # draw_projected_box3d(image, vert[0], color=(0, 0, 255))
-                    #     # draw_projected_box3d(image, vert[1], color=(255, 0, 255))
-                    #     cv2.rectangle(image, (int(x1), int(y1)), (int(x2-x1), int(y2-y1)), (0, 0, 255), 2)
-                    # cv2.imwrite(f"{str(time.time())}.png", image)
+                    # annos = self.evaluator.evaluate(self.captured_frame_no)
+                    print(annos)
+                    scores = annos["score"]
+                    vertices = annos["vertices"]
+
+                    for i, score in enumerate(scores):
+                        if score * 100 > 35:
+                            # draw 3D
+                            image = draw_projected_box3d(image, vertices[i], color=(0, 0, 255), thickness=1)
+
+                            # draw 2D
+                            # bbox = annos["bbox"]
+                            # x1, y1, x2, y2 = bbox[i]
+                            # cv2.rectangle(image, pt1=(x1, y1), pt2=(x2, y2), color=(0, 0, 255), thickness=2)
 
                     # Display image
                     surface = pygame.surfarray.make_surface(image.swapaxes(0, 1))
-
-                    for i, vert in enumerate(vertices):
-                        h, w, l = dimensions[i]
-                        x, y, z, ry = location[i]
-                        x1, y1, x2, y2 = bbox[i]
-                        pygame.draw.rect(surface, (0, 0, 255), (int(x1), int(y1), int(x2-x1), int(y2-y1)), 2)
                     self._display.blit(surface, (0, 0))
                     pygame.display.flip()
-                    time.sleep(0.5)
-                    # img = get_image_data(image_converter.to_rgb_array(self._main_image))
-                    # lid = get_lidar_data(point_cloud)
-                    # calib = get_calibration_matrices(self._intrinsic, self._extrinsic)
-                    # mess = {
-                    #     "idx": self.captured_frame_no,
-                    #             "image_2": img,
-                    #             "velodyne": lid,
-                    #             "calib": calib
-                    #         }
                     self.captured_frame_no += 1
                     self._captured_frames_since_restart += 1
                     self._frames_since_last_capture = 0

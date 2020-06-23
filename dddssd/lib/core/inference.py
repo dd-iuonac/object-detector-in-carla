@@ -6,11 +6,9 @@ import argparse
 import numpy as np
 from dddssd.lib.core.config import cfg, cfg_from_file
 import dddssd.lib.dataset.maps_dict as maps_dict
-from dddssd.lib.dataset.data_provider.data_provider import DataFromList, MultiProcessMapData, BatchDataNuscenes
 from dddssd.lib.modeling import choose_model
 from dddssd.lib.utils import box_3d_utils
 from dddssd.lib.utils.anchors_util import project_to_image_space_corners
-from dddssd.lib.utils.kitti_util import project_to_image
 from dddssd.lib.utils.points_filter import get_point_filter_in_image, get_point_filter
 from visualization.kitti_util import comp_box_3d
 
@@ -33,7 +31,7 @@ def parse_args():
 
 class Evaluator:
     def __init__(self, config, model_path, cls_threshold=0.3):
-        self.batch_size = 1# config.TRAIN.CONFIG.BATCH_SIZE
+        self.batch_size = config.TRAIN.CONFIG.BATCH_SIZE
         self.gpu_num = config.TRAIN.CONFIG.GPU_NUM
         self.num_workers = config.DATA_LOADER.NUM_THREADS
         self.log_dir = config.MODEL.PATH.EVALUATION_DIR
@@ -60,23 +58,20 @@ class Evaluator:
             placeholders_list.append(model.placeholders)
         self.placeholders_list = placeholders_list
 
-        self.dataset_iter = self.load_batch()
-
         self.saver = tf.train.Saver()
         self.session = tf.Session()
         self.saver.restore(self.session, self.restore_model_path)
         self._check()
 
     def evaluate(self, sample_id):
-        # sess = tf.Session()
-        # self.saver.restore(sess, self.restore_model_path)
+        self.session = tf.Session()
+        self.saver.restore(self.session, self.restore_model_path)
         result = self._get_prediction(self.session, self.cls_thresh, sample_id)
-        # sess.close()
-        # print(result)
+        self.session.close()
+        tf.reset_default_graph()
         return result
 
-    def infer(self, sample):
-        # self.dataset_iter = self.load_batch()
+    def predict(self, sample):
         feed_dict = self.create_feed_dict(sample)
         pred_bbox_3d_op, pred_cls_score_op, pred_cls_category_op = self.session.run(self.pred_list, feed_dict=feed_dict)
 
@@ -97,6 +92,7 @@ class Evaluator:
             "bbox": [],
             "location": [],
             "dimensions": [],
+            "rotation_y": [],
             "vertices": []
         }
 
@@ -109,16 +105,15 @@ class Evaluator:
             result["dimensions"].append(
                 [float(pred_bbox_3d_op[idx, 4]), float(pred_bbox_3d_op[idx, 5]), float(pred_bbox_3d_op[idx, 3])])
             result["location"].append(
-                [float(pred_bbox_3d_op[idx, 0]), float(pred_bbox_3d_op[idx, 1]), float(pred_bbox_3d_op[idx, 2]),
-                 float(pred_bbox_3d_op[idx, -1])])
+                [float(pred_bbox_3d_op[idx, 0]), float(pred_bbox_3d_op[idx, 1]), float(pred_bbox_3d_op[idx, 2])])
+            result["rotation_y"].append(float(pred_bbox_3d_op[idx, -1]))
             result["score"].append(float(pred_cls_score_op[idx]))
-            b2d, b3d = comp_box_3d(float(pred_bbox_3d_op[idx, 4]), float(pred_bbox_3d_op[idx, 5]), float(pred_bbox_3d_op[idx, 3]),
-                        float(pred_bbox_3d_op[idx, 0]), float(pred_bbox_3d_op[idx, 1]), float(pred_bbox_3d_op[idx, 2]),
-                 float(pred_bbox_3d_op[idx, -1]), calib_P)
-            result["vertices"].append([b2d, b3d])
-            # result["vertices"].append(project_to_image(pred_bbox_corners_op[idx], calib_P))
+            box3d_pts_2d, box3d_pts_3d = comp_box_3d(float(pred_bbox_3d_op[idx, 4]), float(pred_bbox_3d_op[idx, 5]),
+                                                     float(pred_bbox_3d_op[idx, 3]), float(pred_bbox_3d_op[idx, 0]),
+                                                     float(pred_bbox_3d_op[idx, 1]), float(pred_bbox_3d_op[idx, 2]),
+                                                     float(pred_bbox_3d_op[idx, -1]), calib_P)
+            result["vertices"].append(box3d_pts_2d)
         return result
-
 
     def _get_prediction(self, sess, cls_thresh, sample_id):
         feed_dict = self.create_feed_dict(sample_id)
@@ -131,7 +126,8 @@ class Evaluator:
         pred_cls_score_op = pred_cls_score_op[select_idx]
         pred_cls_category_op = pred_cls_category_op[select_idx]
         pred_bbox_3d_op = pred_bbox_3d_op[select_idx]
-        pred_bbox_corners_op = box_3d_utils.get_box3d_corners_helper_np(pred_bbox_3d_op[:, :3], pred_bbox_3d_op[:, -1], pred_bbox_3d_op[:, 3:-1])
+        pred_bbox_corners_op = box_3d_utils.get_box3d_corners_helper_np(
+            pred_bbox_3d_op[:, :3], pred_bbox_3d_op[:, -1], pred_bbox_3d_op[:, 3:-1])
         pred_bbox_2d = project_to_image_space_corners(pred_bbox_corners_op, calib_P, img_shape=(384, 1248))
 
         result = {
@@ -140,26 +136,28 @@ class Evaluator:
             "bbox": [],
             "location": [],
             "dimensions": [],
-            "vertices": []
+            "vertices": [],
+            "rotation_y": []
         }
 
         for idx in range(len(pred_cls_score_op)):
             cls_idx = int(pred_cls_category_op[idx])
-            # print('%s %0.2f %d %d ' % (self.cls_list[cls_idx], 0., 0, -10))
-            # print('%0.2f %0.2f %0.2f %0.2f ' % (float(pred_bbox_2d[idx, 0]), float(pred_bbox_2d[idx, 1]), float(pred_bbox_2d[idx, 2]), float(pred_bbox_2d[idx, 3])))
-            # print('%0.2f %0.2f %0.2f ' % (float(pred_bbox_3d_op[idx, 4]), float(pred_bbox_3d_op[idx, 5]), float(pred_bbox_3d_op[idx, 3])))
-            # print('%0.2f %0.2f %0.2f %0.2f ' % (float(pred_bbox_3d_op[idx, 0]), float(pred_bbox_3d_op[idx, 1]), float(pred_bbox_3d_op[idx, 2]), float(pred_bbox_3d_op[idx, -1])))
-            # print('%0.9f\n' % float(pred_cls_score_op[idx]))
             result["class"].append(self.cls_list[cls_idx])
-            result["bbox"].append([float(pred_bbox_2d[idx, 0]), float(pred_bbox_2d[idx, 1]), float(pred_bbox_2d[idx, 2]), float(pred_bbox_2d[idx, 3])])
-            result["dimensions"].append([float(pred_bbox_3d_op[idx, 4]), float(pred_bbox_3d_op[idx, 5]), float(pred_bbox_3d_op[idx, 3])])
-            result["location"].append([float(pred_bbox_3d_op[idx, 0]), float(pred_bbox_3d_op[idx, 1]), float(pred_bbox_3d_op[idx, 2]), float(pred_bbox_3d_op[idx, -1])])
+            result["bbox"].append(
+                [float(pred_bbox_2d[idx, 0]), float(pred_bbox_2d[idx, 1]), float(pred_bbox_2d[idx, 2]),
+                 float(pred_bbox_2d[idx, 3])])
+            result["dimensions"].append([float(pred_bbox_3d_op[idx, 4]),
+                                         float(pred_bbox_3d_op[idx, 5]),
+                                         float(pred_bbox_3d_op[idx, 3])])
+            result["location"].append(
+                [float(pred_bbox_3d_op[idx, 0]), float(pred_bbox_3d_op[idx, 1]), float(pred_bbox_3d_op[idx, 2])])
+            result["rotation_y"].append(float(pred_bbox_3d_op[idx, -1]))
             result["score"].append(float(pred_cls_score_op[idx]))
-            vert2d, vert3d = comp_box_3d(result["dimensions"][idx][0], result["dimensions"][idx][1], result["dimensions"][idx][2],
-                        result["location"][idx][0], result["location"][idx][1], result["location"][idx][2],
-                        result["location"][idx][3], calib_P)
-            result["vertices"].append([vert2d, vert3d])
-            # result["vertices"].append(project_to_image(pred_bbox_corners_op[idx], calib_P))
+            box3d_pts_2d, box3d_pts_3d = comp_box_3d(float(pred_bbox_3d_op[idx, 4]), float(pred_bbox_3d_op[idx, 5]),
+                                                     float(pred_bbox_3d_op[idx, 3]), float(pred_bbox_3d_op[idx, 0]),
+                                                     float(pred_bbox_3d_op[idx, 1]), float(pred_bbox_3d_op[idx, 2]),
+                                                     float(pred_bbox_3d_op[idx, -1]), calib_P)
+            result["vertices"].append(box3d_pts_2d)
         return result
 
     def _check(self):
@@ -200,18 +198,27 @@ class Evaluator:
         self.log_file.flush()
         print(out_str)
 
-    def create_feed_dict(self, s):
-        sample = next(self.dataset_iter, None)
-        # sample = self.load_sample(s)
-        points, sem_labels, sem_dists, label_boxes_3d, ry_cls_label, residual_angle, \
+    def create_feed_dict(self, sample_id):
+        sample = self.load_sample(sample_id)
+        biggest, points, sem_labels, sem_dists, label_boxes_3d, ry_cls_label, residual_angle, \
         label_classes, calib_P, sample_name = sample
+        points = np.array([points])
+        sem_labels = np.array([sem_labels])
+        sem_dists = np.array([sem_dists])
+        label_boxes_3d = np.array([label_boxes_3d])
+        ry_cls_label = np.array([ry_cls_label])
+        residual_angle = np.array([residual_angle])
+        label_classes = np.array([label_classes])
+        calib_P = np.array([calib_P])
+        sample_name = np.array([sample_name])
+
         self.info = [calib_P, sample_name]
 
         feed_dict = dict()
         for i in range(1):
             cur_placeholder = self.placeholders_list[i]
-            begin_idx = i*self.batch_size
-            end_idx = (i+1)*self.batch_size
+            begin_idx = i * self.batch_size
+            end_idx = (i + 1) * self.batch_size
 
             feed_dict[cur_placeholder[maps_dict.PL_POINTS_INPUT]] = points[begin_idx:end_idx]
 
@@ -227,22 +234,11 @@ class Evaluator:
 
         return feed_dict
 
-    def load_batch(self):
-        """
-        make data with batch_size per thread
-        """
-        perm = np.arange(1).tolist()  # a list indicates each data
-        dp = DataFromList(perm, is_train=False, shuffle=False)
-        dp = MultiProcessMapData(dp, self.load_sample, 1)
-
-        use_concat = [0, 0, 0, 2, 2, 2, 2, 0, 0]
-        dp = BatchDataNuscenes(dp, 1, use_concat=use_concat)
-        dp.reset_state()
-        dp = dp.get_data()
-        return dp
-
-    def load_sample(self, sample, pipename):
-        sample_dict, biggest_label_num = self.preprocess_samples(sample)
+    def load_sample(self, sample):
+        if type(sample) == str:
+            sample_dict, biggest_label_num = self.preprocess_sample_from_file(sample)
+        else:
+            sample_dict, biggest_label_num = self.preprocess_sample(sample)
         biggest_label_num = 0
 
         sem_labels = sample_dict[maps_dict.KEY_LABEL_SEMSEG]
@@ -274,11 +270,12 @@ class Evaluator:
 
         biggest_label_num = max(biggest_label_num, cur_label_num)
 
-        return biggest_label_num, points, sem_labels, sem_dists, label_boxes_3d, ry_cls_label, residual_angle,\
+        return biggest_label_num, points, sem_labels, sem_dists, label_boxes_3d, ry_cls_label, residual_angle, \
                label_classes, calib.P, sample_dict[maps_dict.KEY_SAMPLE_NAME]
 
     # Preprocess data
-    def preprocess_samples(self, sample_id):
+    def preprocess_sample_from_file(self, sample_id):
+        print(f"SAMPLE:{sample_id}")
         img_filename = os.path.join("_out/testing/image_2", '%06d.png' % int(sample_id))
         lidar_filename = os.path.join("_out/testing/velodyne", '%06d.bin' % int(sample_id))
         calib_filename = os.path.join("_out/testing/calib", '%06d.txt' % int(sample_id))
@@ -362,6 +359,7 @@ class Evaluator:
             maps_dict.KEY_SAMPLE_NAME: sample["idx"]
         }
         return sample_dict, biggest_label_num
+
 
 if __name__ == '__main__':
     args = parse_args()

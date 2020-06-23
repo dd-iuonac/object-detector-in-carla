@@ -406,12 +406,14 @@ class MultiProcessMapDataZMQ(_ParallelMapData):
             pass
 
 
+
 def MultiProcessMapData(dp, map_func, nr_dpflows=0):
     if nr_dpflows == 0:
         dp = MapData(dp, map_func)
     else:
         dp = MultiProcessMapDataZMQ(dp, nr_dpflows, map_func)
     return dp
+
 
 class BatchData(ProxyDataFlow):
     """
