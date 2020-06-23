@@ -841,6 +841,7 @@ def box3d_to_bbox(box3d, rect, Trv2c, P2):
     bbox = np.concatenate([minxy, maxxy], axis=1)
     return bbox
 
+
 def assign_label_to_voxel(gt_boxes, coors, voxel_size, coors_range):
     """assign a 0/1 label to each voxel based on whether 
     the center of voxel is in gt_box. LIDAR.
@@ -859,6 +860,7 @@ def assign_label_to_voxel(gt_boxes, coors, voxel_size, coors_range):
     gt_surfaces = corner_to_surfaces_3d(gt_box_corners)
     ret = points_in_convex_polygon_3d_jit(voxel_centers, gt_surfaces)
     return np.any(ret, axis=1).astype(np.int64)
+
 
 def change_box3d_center_(box3d, src, dst):
     dst = np.array(dst, dtype=box3d.dtype)

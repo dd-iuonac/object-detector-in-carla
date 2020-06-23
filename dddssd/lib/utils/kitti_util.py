@@ -88,8 +88,10 @@ class Calibration(object):
 
         TODO(rqi): do matrix multiplication only once for each projection.
     '''
-    def __init__(self, calib_filepath, from_video=False):
-        if from_video:
+    def __init__(self, calib_filepath, from_video=False, calib=None):
+        if calib:
+            calibs = calib
+        elif from_video:
             calibs = self.read_calib_from_video(calib_filepath)
         else:
             calibs = self.read_calib_file(calib_filepath)
@@ -97,7 +99,7 @@ class Calibration(object):
         # P2 means the left color image in the kitti dataset
         # which is the images we used
         self.P = calibs['P2'] 
-        self.P = np.reshape(self.P, [3,4])
+        self.P = np.reshape(self.P, [3, 4])
         # Rigid transform from Velodyne coord to reference camera coord
         # the velo_to_cam matrix
         self.V2C = calibs['Tr_velo_to_cam']

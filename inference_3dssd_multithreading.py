@@ -27,12 +27,12 @@ STARTING in a moment...
 """
 
 import argparse
+from queue import Queue
 from threading import Thread
 
 from dddssd.lib.core.config import cfg_from_file, cfg
 from dddssd.lib.core.inference import Evaluator
-from utils.camera_utils import draw_3d_bounding_box
-from visualization.kitti_util import draw_projected_box3d, comp_box_3d
+from visualization.kitti_util import draw_projected_box3d
 
 try:
     import pygame
@@ -55,7 +55,7 @@ from carla.transform import Transform
 
 from utils.timer import Timer
 from core.dataexport import *
-from core.bounding_box import create_kitti_data_point, vertices_to_2d_coords
+from core.bounding_box import create_kitti_data_point
 from utils.carla_utils import KeyboardHelper, MeasurementsDisplayHelper
 from core.constants import *
 from core.settings import make_carla_settings
@@ -119,7 +119,7 @@ class InfThread(Thread):
 
 
 class CarlaGame(object):
-    def __init__(self, carla_client, args):
+    def __init__(self, carla_client, message, answer, args):
         self.client = carla_client
         self._carla_settings, self._intrinsic, self._camera_to_car_transform, self._lidar_to_car_transform = make_carla_settings(
             args)
@@ -148,7 +148,9 @@ class CarlaGame(object):
         self._frames_since_last_capture = 0
         # How many frames we have captured since reset
         self._captured_frames_since_restart = 0
-        self._build_network()
+        # self._build_network()
+        self.message = message
+        self.answer = answer
 
     def _build_network(self):
         cfg_from_file(CONFIG_FILE)
@@ -331,6 +333,16 @@ class CarlaGame(object):
                 point_cloud_cam[:, 1] += LIDAR_HEIGHT_POS
                 image = lidar_utils.project_point_cloud(image, point_cloud_cam, self._intrinsic, 1)
 
+            try:
+                annos = self.answer.get(block=False, timeout=0.1)
+                # scores = annos["score"]
+                vertices = annos["vertices"]
+
+                for i, vert in enumerate(vertices):
+                    draw_projected_box3d(image, vert, color=(0, 0, 255))
+            except Exception:
+               pass
+
             # Display image
             surface = pygame.surfarray.make_surface(image.swapaxes(0, 1))
             self._display.blit(surface, (0, 0))
@@ -372,47 +384,6 @@ class CarlaGame(object):
                     self._update_agent_location()
                     # Save screen, lidar and kitti training labels together with calibration and groundplane files
                     self._save_training_files(datapoints, point_cloud)
-                    annos = self.evaluator.evaluate(self.captured_frame_no)
-                    print(annos)
-                    vertices = annos["vertices"]
-                    bbox = annos["bbox"]
-                    dimensions = annos["dimensions"]
-                    location = annos["location"]
-
-                    # for i, vert in enumerate(vertices):
-                    #     h, w, l = dimensions[i]
-                    #     x, y, z, ry = location[i]
-                    #     x1, y1, x2, y2 = bbox[i]
-                    #
-                    #     m2 = [
-                    #         [x1, y1, z + h / 2],
-                    #         [x1, y1 + l, z + h / 2],
-                    #         [x1, y1, z - h / 2],
-                    #         [x1, y1+l, z - h / 2],
-                    #         [x2, y2 - l, z + h / 2],
-                    #         [x2, y2, z + h/ 2],
-                    #         [x2, y2 - l, z - h / 2],
-                    #         [x2, y2, z - h / 2]
-                    #     ]
-                    #
-                    #     # v = vertices_to_2d_coords(np.matrix(m2), self._intrinsic, self._extrinsic.matrix)
-                    #     # draw_3d_bounding_box(image, v, (255, 255, 255))
-                    #     # draw_projected_box3d(image, vert[0], color=(0, 0, 255))
-                    #     # draw_projected_box3d(image, vert[1], color=(255, 0, 255))
-                    #     cv2.rectangle(image, (int(x1), int(y1)), (int(x2-x1), int(y2-y1)), (0, 0, 255), 2)
-                    # cv2.imwrite(f"{str(time.time())}.png", image)
-
-                    # Display image
-                    surface = pygame.surfarray.make_surface(image.swapaxes(0, 1))
-
-                    for i, vert in enumerate(vertices):
-                        h, w, l = dimensions[i]
-                        x, y, z, ry = location[i]
-                        x1, y1, x2, y2 = bbox[i]
-                        pygame.draw.rect(surface, (0, 0, 255), (int(x1), int(y1), int(x2-x1), int(y2-y1)), 2)
-                    self._display.blit(surface, (0, 0))
-                    pygame.display.flip()
-                    time.sleep(0.5)
                     # img = get_image_data(image_converter.to_rgb_array(self._main_image))
                     # lid = get_lidar_data(point_cloud)
                     # calib = get_calibration_matrices(self._intrinsic, self._extrinsic)
@@ -422,6 +393,10 @@ class CarlaGame(object):
                     #             "velodyne": lid,
                     #             "calib": calib
                     #         }
+                    try:
+                        self.message.put(self.captured_frame_no, block=False)
+                    except Exception:
+                        pass
                     self.captured_frame_no += 1
                     self._captured_frames_since_restart += 1
                     self._frames_since_last_capture = 0
@@ -463,12 +438,16 @@ class CarlaGame(object):
         img_fname = IMAGE_PATH.format(self.captured_frame_no)
         calib_filename = CALIBRATION_PATH.format(self.captured_frame_no)
 
-        save_groundplanes(groundplane_fname, self._measurements.player_measurements, LIDAR_HEIGHT_POS)
+        save_groundplanes(
+            groundplane_fname, self._measurements.player_measurements, LIDAR_HEIGHT_POS)
         save_ref_files(OUTPUT_FOLDER, self.captured_frame_no)
-        save_image_data(img_fname, image_converter.to_rgb_array(self._main_image))
+        save_image_data(
+            img_fname, image_converter.to_rgb_array(self._main_image))
         save_kitti_data(kitti_fname, datapoints)
-        save_lidar_data(lidar_fname, point_cloud, LIDAR_HEIGHT_POS, LIDAR_DATA_FORMAT)
-        save_calibration_matrices(calib_filename, self._intrinsic, self._extrinsic)
+        save_lidar_data(lidar_fname, point_cloud,
+                        LIDAR_HEIGHT_POS, LIDAR_DATA_FORMAT)
+        save_calibration_matrices(
+            calib_filename, self._intrinsic, self._extrinsic)
 
 
 def should_detect_class(agent):
@@ -527,15 +506,21 @@ def main():
     logging.info('listening to server %s:%s', args.host, args.port)
     logging.info(__doc__)
 
+    message = Queue(3)
+    answer = Queue(2)
+    thread = InfThread(message, answer)
+    thread.start()
     while True:
         try:
             with make_carla_client(args.host, args.port) as client:
-                game = CarlaGame(client, args)
+                game = CarlaGame(client, message, answer, args)
                 game.execute()
                 break
         except TCPConnectionError as error:
             logging.error(error)
             time.sleep(1)
+    thread.quit()
+    thread.join()
 
 
 if __name__ == '__main__':

@@ -10,7 +10,6 @@ from google.protobuf import text_format
 from tensorboardX import SummaryWriter
 
 import pointpillars.second.data.kitti_common as kitti
-from dddssd.lib.utils import box_3d_utils
 from pointpillars import torchplus
 from pointpillars.second.builder import target_assigner_builder, voxel_builder
 from pointpillars.second.data.preprocess import merge_second_batch
@@ -535,11 +534,6 @@ def predict_kitti_to_anno(net,
                 anno["score"].append(score)
 
                 num_example += 1
-            pred_bbox_corners_op = box_3d_utils.get_box3d_corners_helper_np(box_preds[:, :3],
-                                                                            box_preds[:, -1],
-                                                                            box_preds[:, 3:-1])
-
-            anno["corners"].append(pred_bbox_corners_op)
 
             if num_example != 0:
                 anno = {n: np.stack(v) for n, v in anno.items()}

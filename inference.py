@@ -22,14 +22,12 @@ import pathlib
 
 from skimage import io
 
-from dddssd.lib.utils.kitti_util import project_to_image
 from pointpillars.second.core import box_np_ops
 from pointpillars.second.create_data import _create_reduced_point_cloud
 from pointpillars.second.data.kitti_common import _extend_matrix, add_difficulty_to_annos, get_velodyne_path, \
     get_image_path, get_label_path, get_label_anno, get_calib_path
 from pointpillars.second.pytorch.inference import TorchInferenceContext
-from utils.camera_utils import draw_3d_bounding_box, draw_rectangle
-from visualization.kitti_util import draw_projected_box3d
+from visualization.kitti_util import draw_projected_box3d, comp_box_3d
 
 try:
     import pygame
@@ -52,7 +50,7 @@ from carla.transform import Transform
 
 from utils.timer import Timer
 from core.dataexport import *
-from core.bounding_box import create_kitti_data_point, vertices_to_2d_coords
+from core.bounding_box import create_kitti_data_point
 from utils.carla_utils import KeyboardHelper, MeasurementsDisplayHelper
 from core.constants import *
 from core.settings import make_carla_settings
@@ -86,34 +84,6 @@ LIDAR_PATH = os.path.join(OUTPUT_FOLDER, 'velodyne/{0:06}.bin')
 LABEL_PATH = os.path.join(OUTPUT_FOLDER, 'label_2/{0:06}.txt')
 IMAGE_PATH = os.path.join(OUTPUT_FOLDER, 'image_2/{0:06}.png')
 CALIBRATION_PATH = os.path.join(OUTPUT_FOLDER, 'calib/{0:06}.txt')
-
-
-# def center_to_corner_box3d(centers,
-#                            dims,
-#                            angles=None,
-#                            origin=[0.5, 1.0, 0.5],
-#                            axis=1):
-#     """convert kitti locations, dimensions and angles to corners
-#
-#     Args:
-#         centers (float array, shape=[N, 3]): locations in kitti label file.
-#         dims (float array, shape=[N, 3]): dimensions in kitti label file.
-#         angles (float array, shape=[N]): rotation_y in kitti label file.
-#         origin (list or array or float): origin point relate to smallest point.
-#             use [0.5, 1.0, 0.5] in camera and [0.5, 0.5, 0] in lidar.
-#         axis (int): rotation axis. 1 for camera and 2 for lidar.
-#     Returns:
-#         [type]: [description]
-#     """
-#     # 'length' in kitti format is in x axis.
-#     # yzx(hwl)(kitti label file)<->xyz(lhw)(camera)<->z(-x)(-y)(wlh)(lidar)
-#     # center in kitti format is [0.5, 1.0, 0.5] in xyz.
-#     corners = corners_nd(dims, origin=origin)
-#     # corners: [N, 8, 3]
-#     if angles is not None:
-#         corners = rotation_3d_in_axis(corners, angles, axis=axis)
-#     corners += centers.reshape([-1, 1, 3])
-#     return corners
 
 
 def carla_anno_to_corners(info, annos=None):
@@ -278,7 +248,6 @@ class CarlaGame(object):
         # How many frames we have captured since reset
         self._captured_frames_since_restart = 0
         self._det_annos = None
-        self._dt_boxes_corners = None
         self._carla_info = None
         self._exists_vehicles = False
 
@@ -448,8 +417,6 @@ class CarlaGame(object):
                     self._lidar_measurement.data))
                 point_cloud[:, 2] -= LIDAR_HEIGHT_POS
                 point_cloud = np.matmul(rotRP, point_cloud.T).T
-                # print(self._lidar_to_car_transform.matrix)
-                # print(self._camera_to_car_transform.matrix)
                 # Transform to camera space by the inverse of camera_to_car transform
                 point_cloud_cam = self._camera_to_car_transform.inverse().transform_points(point_cloud)
                 point_cloud_cam[:, 1] += LIDAR_HEIGHT_POS
@@ -460,35 +427,22 @@ class CarlaGame(object):
                 scores = self._det_annos["score"]
                 b_boxes = self._det_annos["bbox"]
                 dimens = self._det_annos["dimensions"]
+                rotation_y = self._det_annos["rotation_y"]
                 location = self._det_annos["location"]
-                corners = self._dt_boxes_corners
 
                 for i, box in enumerate(b_boxes):
                     if scores[i] * 100 > 35:
                         x, y, z = location[i]
-                        w, h, d = dimens[i]
-                        x1, y1, x2, y2 = b_boxes[i]
-                        m = [
-                                [x-w/2, y+h/2, z+d/2],
-                                [x+w/2, y+h/2, z+d/2],
-                                [x-w/2, y-h/2, z+d/2],
-                                [x+w/2, y-h/2, z+d/2],
-                                [x-w/2, y+h/2, z-d/2],
-                                [x+w/2, y+h/2, z-d/2],
-                                [x-w/2, y-h/2, z-d/2],
-                                [x+w/2, y-h/2, z-d/2],
-                             ]
-                        m2 = [
-                            [x1, y1+h, z+d/2],
-                            [x1+w, y1+h, z+d/2],
-                            [x1, y1, z+d/2],
-                            [x1+w, y1, z+d/2],
-                            [x2-w, y2, z-d/2],
-                            [x2, y2, z-d/2],
-                            [x2-w, y2-h, z-d/2],
-                            [x2, y2-h, z-d/2],
-                        ]
-                        draw_projected_box3d(image, corners[i], color=(0, 0, 255))
+                        h, w, l = dimens[i]
+                        ry = rotation_y[i]
+
+                        # draw 3D
+                        box3d_pts_2d, box3d_pts_3d = comp_box_3d(h, w, l, x, y, z, ry, self._carla_info['calib/P2'])
+                        image = draw_projected_box3d(image, box3d_pts_2d, color=(0, 0, 255), thickness=1)
+
+                        # draw 2D
+                        # x1, y1, x2, y2 = b_boxes[i]
+                        # cv2.rectangle(image, pt1=(x1, y1), pt2=(x2, y2), color=(0, 0, 255), thickness=2)
 
             # Display image
             surface = pygame.surfarray.make_surface(image.swapaxes(0, 1))
@@ -500,7 +454,6 @@ class CarlaGame(object):
 
             # Determine whether to save files
             # distance_driven = self._distance_since_last_recording()
-            # print("Distance driven since last recording: {}".format(distance_driven))
             # has_driven_long_enough = distance_driven is None or distance_driven > DISTANCE_SINCE_LAST_RECORDING
             if (self._timer.step + 1) % STEPS_BETWEEN_RECORDINGS == 0:
                 if datapoints:
@@ -524,8 +477,7 @@ class CarlaGame(object):
                                          [-sin(pitch), 0, cos(pitch)]])
                         # Rotation matrix for roll
                         rotR = np.array([[1, 0, 0],
-                                         [0, cos(
-                                             roll), -sin(roll)],
+                                         [0, cos(roll), -sin(roll)],
                                          [0, sin(roll), cos(roll)]])
 
                         # combined rotation matrix, must be in order roll, pitch, yaw
@@ -539,7 +491,6 @@ class CarlaGame(object):
                     # Save screen, lidar and kitti training labels together with calibration and groundplane files
                     self._save_training_files(datapoints, point_cloud)
                     self._get_predictions(image)
-                    self._exists_vehicles = True
                     self.captured_frame_no += 1
                     self._captured_frames_since_restart += 1
                     self._frames_since_last_capture = 0
@@ -551,24 +502,6 @@ class CarlaGame(object):
                 self._frames_since_last_capture += 1
                 logging.debug(
                     "Could not save training data - no visible agents of selected classes in scene")
-
-    def draw_detection(self, detection_anno):
-        if self._carla_info is None:
-            print("you must load infos and choose a existing image idx first.")
-            return
-
-        rect = self._carla_info['calib/R0_rect']
-        P2 = self._carla_info['calib/P2']
-        Trv2c = self._carla_info['calib/Tr_velo_to_cam']
-
-        dt_bboxes = detection_anno["bbox"]
-
-        dt_boxes_corners, scores, dt_box_lidar = carla_anno_to_corners(
-            self._carla_info, detection_anno)
-        corners = detection_anno["corners"]
-        self._dt_boxes_corners = []
-        for c in corners:
-            self._dt_boxes_corners.append(project_to_image(c, P2))
 
     def _get_predictions(self, image):
         self._carla_info = get_carla_info(idx=self.captured_frame_no,
@@ -585,7 +518,6 @@ class CarlaGame(object):
         with self.torchInference.ctx():
             self._det_annos = self.torchInference.inference(inputs)[0]
             print(self._det_annos)
-            self.draw_detection(self._det_annos)
 
     def _update_agent_location(self):
         self._agent_location_on_last_capture = self._measurements.player_measurements.transform.location

@@ -51,6 +51,53 @@ def save_image_data(filename, image):
     cv2.imwrite(filename, color_fmt)
 
 
+def get_image_data(image):
+    # Convert to correct color format
+    color_fmt = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+    return color_fmt
+
+
+def save_lidar_data(filename, point_cloud, LIDAR_HEIGHT, format="bin"):
+    """ Saves lidar data to given filename, according to the lidar data format.
+        bin is used for KITTI-data format, while .ply is the regular point cloud format
+        In Unreal, the coordinate system of the engine is defined as, which is the same as the lidar points
+        z
+        ^   ^ x
+        |  /
+        | /
+        |/____> y
+        This is a left-handed coordinate system, with x being forward, y to the right and z up
+        See also https://github.com/carla-simulator/carla/issues/498
+        However, the lidar coordinate system from KITTI is defined as
+              z
+              ^   ^ x
+              |  /
+              | /
+        y<____|/
+        Which is a right handed coordinate sylstem
+        Therefore, we need to flip the y axis of the lidar in order to get the correct lidar format for kitti.
+
+        This corresponds to the following changes from Carla to Kitti
+            Carla: X   Y   Z
+            KITTI: X  -Y   Z
+        NOTE: We do not flip the coordinate system when saving to .ply.
+    """
+    logging.info("Wrote lidar data to %s", filename)
+
+    if format == "bin":
+        lidar_array = [[point[0], -point[1], point[2], 1.0]
+                       for point in point_cloud]
+        lidar_array = np.array(lidar_array).astype(np.float32)
+        logging.debug("Lidar min/max of x: {} {}".format(
+                      lidar_array[:, 0].min(), lidar_array[:, 0].max()))
+        logging.debug("Lidar min/max of y: {} {}".format(
+                      lidar_array[:, 1].min(), lidar_array[:, 0].max()))
+        logging.debug("Lidar min/max of z: {} {}".format(
+                      lidar_array[:, 2].min(), lidar_array[:, 0].max()))
+        lidar_array.tofile(filename)
+    else:
+        lidar_measurement.point_cloud.save_to_disk(filename)
+
 def save_lidar_data(filename, point_cloud, LIDAR_HEIGHT, format="bin"):
     """ Saves lidar data to given filename, according to the lidar data format.
         bin is used for KITTI-data format, while .ply is the regular point cloud format
@@ -94,7 +141,7 @@ def save_lidar_data(filename, point_cloud, LIDAR_HEIGHT, format="bin"):
 
 
 def get_lidar_data(point_cloud):
-    """ Saves lidar data to given filename, according to the lidar data format.
+    """ Thi returns lidar data to given filename, according to the lidar data format.
         bin is used for KITTI-data format, while .ply is the regular point cloud format
         In Unreal, the coordinate system of the engine is defined as, which is the same as the lidar points
         z
@@ -213,9 +260,6 @@ def get_calibration_matrices(intrinsic_mat, extrinsic_mat):
     TR_imu_to_velo = np.identity(3)
     TR_imu_to_velo = np.column_stack((TR_imu_to_velo, np.array([0, 0, 0])))
 
-    def write_flat(name, arr):
-        return "{}: {}\n".format(name, ' '.join(map(str, arr.flatten(ravel_mode).squeeze())))
-
     # All matrices are written on a line with spacing
     calib = {
         "P0": "",
@@ -227,8 +271,8 @@ def get_calibration_matrices(intrinsic_mat, extrinsic_mat):
         "TR_imu_to_velo": "",
     }
     for i in range(4):  # Avod expects all 4 P-matrices even though we only use the first
-        calib["P" + str(i)] = write_flat("P" + str(i), P0)
-    calib["R0_rect"] = write_flat("R0_rect", R0)
-    calib["Tr_velo_to_cam"] = write_flat("Tr_velo_to_cam", TR_velodyne)
-    calib["TR_imu_to_velo"] = write_flat("TR_imu_to_velo", TR_imu_to_velo)
+        calib["P" + str(i)] = P0
+    calib["R0_rect"] = R0
+    calib["Tr_velo_to_cam"] = TR_velodyne
+    calib["TR_imu_to_velo"] = TR_imu_to_velo
     return calib

@@ -25,7 +25,7 @@ cbox = np.array([[0, 70.4], [-40, 40], [-3, 1]])
 class KittiObject(object):
     """Load and parse object data into a usable format."""
 
-    def __init__(self, root_dir, split='training', args=None):
+    def __init__(self, root_dir, split='testing', args=None):
         """root_dir contains training and testing folders"""
         self.root_dir = root_dir
         self.split = split
@@ -33,9 +33,9 @@ class KittiObject(object):
         self.split_dir = os.path.join(root_dir, split)
 
         if split == 'training':
-            self.num_samples = 7481
+            self.num_samples = 0
         elif split == 'testing':
-            self.num_samples = 7518
+            self.num_samples = 31
         else:
             print('Unknown split: %s' % (split))
             exit(-1)
@@ -77,12 +77,12 @@ class KittiObject(object):
         return utils.Calibration(calib_filename)
 
     def get_label_objects(self, idx):
-        assert (idx < self.num_samples and self.split == 'training')
+        assert (idx < self.num_samples and self.split == 'testing')
         label_filename = os.path.join(self.label_dir, '%06d.txt' % (idx))
         return utils.read_label(label_filename)
 
     def get_pred_objects(self, idx):
-        assert (idx < self.num_samples and self.split == 'training')
+        assert (idx < self.num_samples and self.split == 'testing')
         pred_filename = os.path.join(self.pred_dir, '%06d.txt' % (idx))
         is_exist = os.path.exists(pred_filename)
         if is_exist:
@@ -115,12 +115,12 @@ class KittiObject(object):
         pass
 
     def isexist_pred_objects(self, idx):
-        assert (idx < self.num_samples and self.split == 'training')
+        assert (idx < self.num_samples and self.split == 'testing')
         pred_filename = os.path.join(self.pred_dir, '%06d.txt' % (idx))
         return os.path.exists(pred_filename)
 
     def isexist_depth(self, idx):
-        assert (idx < self.num_samples and self.split == 'training')
+        assert (idx < self.num_samples and self.split == 'testing')
         depth_filename = os.path.join(self.depth_dir, '%06d.txt' % (idx))
         return os.path.exists(depth_filename)
 
@@ -574,9 +574,9 @@ def show_lidar_topview_with_boxes(pc_velo, objects, calib, objects_pred=None):
 
 
 def dataset_viz(root_dir, args):
-    dataset = KittiObject(root_dir, args=args)
+    dataset = KittiObject(root_dir, split="testing", args=args)
     ## load 2d detection results
-    objects2ds = read_det_file('box2d.list')
+    objects2ds = read_det_file('visualization/box2d.list')
     for data_idx in range(len(dataset)):
         if args.ind > 0:
             data_idx = args.ind
@@ -649,7 +649,7 @@ def dataset_viz(root_dir, args):
 
 if __name__ == '__main__':
     import mayavi.mlab as mlab
-    from .vis_helper import draw_lidar_simple, draw_lidar, draw_gt_boxes3d
+    from visualization.vis_helper import draw_lidar_simple, draw_lidar, draw_gt_boxes3d
 
     parser = argparse.ArgumentParser(description='PyTorch Training RPN')
     parser.add_argument('-d', '--dir', type=str, default="data/obj", metavar='N',
@@ -676,7 +676,7 @@ if __name__ == '__main__':
     parser.add_argument('--show_lidar_topview_with_boxes', action='store_true', help='constraint box')
     args = parser.parse_args()
     if args.pred:
-        assert os.path.exists(args.dir + "/training/pred")
+        assert os.path.exists(args.dir + "/testing/pred")
 
     if args.vis:
         dataset_viz(args.dir, args)
