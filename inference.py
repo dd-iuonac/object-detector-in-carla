@@ -22,12 +22,14 @@ import pathlib
 
 from skimage import io
 
+from dddssd.lib.utils.kitti_util import project_to_image
 from pointpillars.second.core import box_np_ops
 from pointpillars.second.create_data import _create_reduced_point_cloud
 from pointpillars.second.data.kitti_common import _extend_matrix, add_difficulty_to_annos, get_velodyne_path, \
     get_image_path, get_label_path, get_label_anno, get_calib_path
 from pointpillars.second.pytorch.inference import TorchInferenceContext
 from utils.camera_utils import draw_3d_bounding_box, draw_rectangle
+from visualization.kitti_util import draw_projected_box3d
 
 try:
     import pygame
@@ -459,11 +461,13 @@ class CarlaGame(object):
                 b_boxes = self._det_annos["bbox"]
                 dimens = self._det_annos["dimensions"]
                 location = self._det_annos["location"]
+                corners = self._dt_boxes_corners
+
                 for i, box in enumerate(b_boxes):
                     if scores[i] * 100 > 35:
                         x, y, z = location[i]
                         w, h, d = dimens[i]
-                        # x1, y1, x2, y2 = b_boxes[i]
+                        x1, y1, x2, y2 = b_boxes[i]
                         m = [
                                 [x-w/2, y+h/2, z+d/2],
                                 [x+w/2, y+h/2, z+d/2],
@@ -474,32 +478,20 @@ class CarlaGame(object):
                                 [x-w/2, y-h/2, z-d/2],
                                 [x+w/2, y-h/2, z-d/2],
                              ]
-                        # m = [
-                        #     [x1, y1+h, z+d/2],
-                        #     [x1+w, y1+h, z+d/2],
-                        #     [x1, y1, z+d/2],
-                        #     [x1+w, y1, z+d/2],
-                        #     [x2-w, y2, z-d/2],
-                        #     [x2, y2, z-d/2],
-                        #     [x2-w, y2-h, z-d/2],
-                        #     [x2, y2-h, z-d/2],
-                        # ]
-                        vertices = vertices_to_2d_coords(np.matrix(m), self._intrinsic, self._extrinsic.matrix)
-                        draw_3d_bounding_box(image, vertices, color=(0, 255, 255))
+                        m2 = [
+                            [x1, y1+h, z+d/2],
+                            [x1+w, y1+h, z+d/2],
+                            [x1, y1, z+d/2],
+                            [x1+w, y1, z+d/2],
+                            [x2-w, y2, z-d/2],
+                            [x2, y2, z-d/2],
+                            [x2-w, y2-h, z-d/2],
+                            [x2, y2-h, z-d/2],
+                        ]
+                        draw_projected_box3d(image, corners[i], color=(0, 0, 255))
 
             # Display image
             surface = pygame.surfarray.make_surface(image.swapaxes(0, 1))
-
-            if self._det_annos is not None:
-                scores = self._det_annos["score"]
-                b_boxes = self._det_annos["bbox"]
-                dimens = self._det_annos["dimensions"]
-                location = self._det_annos["location"]
-                for i, score in enumerate(scores):
-                    if score * 100 > 50:
-                        bbox = b_boxes[i]
-                        pygame.draw.rect(surface, (0, 0, 255), (bbox[0], bbox[1], bbox[2] - bbox[0], bbox[3] - bbox[1]),
-                                         3)
 
             self._display.blit(surface, (0, 0))
             if self._map_view is not None:
@@ -569,13 +561,14 @@ class CarlaGame(object):
         P2 = self._carla_info['calib/P2']
         Trv2c = self._carla_info['calib/Tr_velo_to_cam']
 
-        # detection_anno = kitti.remove_low_height(detection_anno, 25)
-
         dt_bboxes = detection_anno["bbox"]
 
         dt_boxes_corners, scores, dt_box_lidar = carla_anno_to_corners(
             self._carla_info, detection_anno)
-        self._dt_boxes_corners = dt_boxes_corners
+        corners = detection_anno["corners"]
+        self._dt_boxes_corners = []
+        for c in corners:
+            self._dt_boxes_corners.append(project_to_image(c, P2))
 
     def _get_predictions(self, image):
         self._carla_info = get_carla_info(idx=self.captured_frame_no,

@@ -626,6 +626,7 @@ def get_start_result_anno():
         'location': [],
         'rotation_y': [],
         'score': [],
+        'corners': []
     })
     return annotations
 
