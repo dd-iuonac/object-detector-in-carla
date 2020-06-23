@@ -454,6 +454,39 @@ class CarlaGame(object):
                 image = lidar_utils.project_point_cloud(
                     image, point_cloud_cam, self._intrinsic, 1)
 
+            if self._det_annos is not None:
+                scores = self._det_annos["score"]
+                b_boxes = self._det_annos["bbox"]
+                dimens = self._det_annos["dimensions"]
+                location = self._det_annos["location"]
+                for i, box in enumerate(b_boxes):
+                    if scores[i] * 100 > 35:
+                        x, y, z = location[i]
+                        w, h, d = dimens[i]
+                        # x1, y1, x2, y2 = b_boxes[i]
+                        m = [
+                                [x-w/2, y+h/2, z+d/2],
+                                [x+w/2, y+h/2, z+d/2],
+                                [x-w/2, y-h/2, z+d/2],
+                                [x+w/2, y-h/2, z+d/2],
+                                [x-w/2, y+h/2, z-d/2],
+                                [x+w/2, y+h/2, z-d/2],
+                                [x-w/2, y-h/2, z-d/2],
+                                [x+w/2, y-h/2, z-d/2],
+                             ]
+                        # m = [
+                        #     [x1, y1+h, z+d/2],
+                        #     [x1+w, y1+h, z+d/2],
+                        #     [x1, y1, z+d/2],
+                        #     [x1+w, y1, z+d/2],
+                        #     [x2-w, y2, z-d/2],
+                        #     [x2, y2, z-d/2],
+                        #     [x2-w, y2-h, z-d/2],
+                        #     [x2, y2-h, z-d/2],
+                        # ]
+                        vertices = vertices_to_2d_coords(np.matrix(m), self._intrinsic, self._extrinsic.matrix)
+                        draw_3d_bounding_box(image, vertices, color=(0, 255, 255))
+
             # Display image
             surface = pygame.surfarray.make_surface(image.swapaxes(0, 1))
 
@@ -467,16 +500,6 @@ class CarlaGame(object):
                         bbox = b_boxes[i]
                         pygame.draw.rect(surface, (0, 0, 255), (bbox[0], bbox[1], bbox[2] - bbox[0], bbox[3] - bbox[1]),
                                          3)
-                #
-                # for i in range(len(self._det_annos)):
-                #     bbox3d = center_to_corner_box3d(centers=location[i], dims=dimens[i])
-                #     vertices = vertices_to_2d_coords(bbox3d, self._intrinsic, self._extrinsic.matrix)
-                #     draw_3d_bounding_box(image, vertices, color=(0, 0, 255))
-
-            # if self._dt_boxes_corners is not None:
-            #     center_to_corner_box3d(self._det_annos[])
-            #     vertices = vertices_to_2d_coords(self._dt_boxes_corners, self._intrinsic, self._extrinsic.matrix)
-            #     draw_3d_bounding_box(image, vertices, color=(0, 0, 255))
 
             self._display.blit(surface, (0, 0))
             if self._map_view is not None:
@@ -697,7 +720,7 @@ def main():
 
     while True:
         try:
-            with make_carla_client(args.host, args.port) as client:
+            with make_carla_client(args.host, args.port, timeout=100) as client:
                 game = CarlaGame(client, args)
                 game.execute()
                 break

@@ -10,6 +10,7 @@ from dddssd.lib.dataset.data_provider.data_provider import DataFromList, MultiPr
 from dddssd.lib.modeling import choose_model
 from dddssd.lib.utils import box_3d_utils
 from dddssd.lib.utils.anchors_util import project_to_image_space_corners
+from dddssd.lib.utils.kitti_util import project_to_image
 from dddssd.lib.utils.points_filter import get_point_filter_in_image, get_point_filter
 
 
@@ -61,6 +62,19 @@ class Evaluator:
         self.dataset_iter = self.load_batch()
 
         self.saver = tf.train.Saver()
+        self._check()
+
+    def _check(self):
+        checkpoint_dirs = self.restore_model_path
+
+        if os.path.isdir(checkpoint_dirs):
+            cur_model_path = tf.train.latest_checkpoint(checkpoint_dirs)
+        else:
+            cur_model_path = checkpoint_dirs
+        if not cur_model_path:
+            raise Exception('Please provide valid checkpoint path')
+        self._log_string('**** Test New Result ****')
+        self._log_string('Assign From checkpoint: %s' % cur_model_path)
 
     def _build_model_list(self):
         model_list = []
@@ -77,7 +91,6 @@ class Evaluator:
         return model_list, pred_list, placeholders
 
     def _set_evaluation_tensor(self, model):
-        # get prediction results, bs = 1
         pred_bbox_3d = tf.squeeze(model.output[maps_dict.PRED_3D_BBOX][-1], axis=0)
         pred_cls_score = tf.squeeze(model.output[maps_dict.PRED_3D_SCORE][-1], axis=0)
         pred_cls_category = tf.squeeze(model.output[maps_dict.PRED_3D_CLS_CATEGORY][-1], axis=0)
@@ -90,20 +103,16 @@ class Evaluator:
         print(out_str)
 
     def evaluate(self, sample_id):
-        checkpoint_dirs = self.restore_model_path
-
-        if os.path.isdir(checkpoint_dirs):
-            cur_model_path = tf.train.latest_checkpoint(checkpoint_dirs)
-        else:
-            cur_model_path = checkpoint_dirs
-        if not cur_model_path:
-            raise Exception('Please provide valid checkpoint path')
-        with tf.Session() as sess:
-            self._log_string('**** Test New Result ****')
-            self._log_string('Assign From checkpoint: %s' % cur_model_path)
-            self.saver.restore(sess, cur_model_path)
+        try:
+            sess = tf.Session()
+            self.saver.restore(sess, self.restore_model_path)
             result = self._get_prediction(sess, self.cls_thresh, sample_id)
+            sess.close()
+            print(result)
             return result
+        except RuntimeError:
+            self.session = tf.Session()
+            return self.evaluate(sample_id)
 
     def _get_prediction(self, sess, cls_thresh, sample_id):
         feed_dict = self.create_feed_dict(sample_id)
@@ -117,7 +126,7 @@ class Evaluator:
         pred_cls_category_op = pred_cls_category_op[select_idx]
         pred_bbox_3d_op = pred_bbox_3d_op[select_idx]
         pred_bbox_corners_op = box_3d_utils.get_box3d_corners_helper_np(pred_bbox_3d_op[:, :3], pred_bbox_3d_op[:, -1], pred_bbox_3d_op[:, 3:-1])
-        pred_bbox_2d = project_to_image_space_corners(pred_bbox_corners_op, calib_P)
+        pred_bbox_2d = project_to_image_space_corners(pred_bbox_corners_op, calib_P, img_shape=(384, 1248))
 
         obj_num = len(pred_bbox_3d_op)
 
@@ -127,20 +136,23 @@ class Evaluator:
             "bbox": [],
             "location": [],
             "dimensions": [],
-
+            "vertices": []
         }
+
         for idx in range(len(pred_cls_score_op)):
             cls_idx = int(pred_cls_category_op[idx])
-            print('%s %0.2f %d %d ' % (self.cls_list[cls_idx], 0., 0, -10))
-            print('%0.2f %0.2f %0.2f %0.2f ' % (float(pred_bbox_2d[idx, 0]), float(pred_bbox_2d[idx, 1]), float(pred_bbox_2d[idx, 2]), float(pred_bbox_2d[idx, 3])))
-            print('%0.2f %0.2f %0.2f ' % (float(pred_bbox_3d_op[idx, 4]), float(pred_bbox_3d_op[idx, 5]), float(pred_bbox_3d_op[idx, 3])))
-            print('%0.2f %0.2f %0.2f %0.2f ' % (float(pred_bbox_3d_op[idx, 0]), float(pred_bbox_3d_op[idx, 1]), float(pred_bbox_3d_op[idx, 2]), float(pred_bbox_3d_op[idx, -1])))
-            print('%0.9f\n' % float(pred_cls_score_op[idx]))
+            # print('%s %0.2f %d %d ' % (self.cls_list[cls_idx], 0., 0, -10))
+            # print('%0.2f %0.2f %0.2f %0.2f ' % (float(pred_bbox_2d[idx, 0]), float(pred_bbox_2d[idx, 1]), float(pred_bbox_2d[idx, 2]), float(pred_bbox_2d[idx, 3])))
+            # print('%0.2f %0.2f %0.2f ' % (float(pred_bbox_3d_op[idx, 4]), float(pred_bbox_3d_op[idx, 5]), float(pred_bbox_3d_op[idx, 3])))
+            # print('%0.2f %0.2f %0.2f %0.2f ' % (float(pred_bbox_3d_op[idx, 0]), float(pred_bbox_3d_op[idx, 1]), float(pred_bbox_3d_op[idx, 2]), float(pred_bbox_3d_op[idx, -1])))
+            # print('%0.9f\n' % float(pred_cls_score_op[idx]))
             result["class"].append(self.cls_list[cls_idx])
             result["bbox"].append([float(pred_bbox_2d[idx, 0]), float(pred_bbox_2d[idx, 1]), float(pred_bbox_2d[idx, 2]), float(pred_bbox_2d[idx, 3])])
-            result["location"].append([float(pred_bbox_3d_op[idx, 4]), float(pred_bbox_3d_op[idx, 5]), float(pred_bbox_3d_op[idx, 3])])
-            result["dimensions"].append([float(pred_bbox_3d_op[idx, 0]), float(pred_bbox_3d_op[idx, 1]), float(pred_bbox_3d_op[idx, 2]), float(pred_bbox_3d_op[idx, -1])])
+            result["dimensions"].append([float(pred_bbox_3d_op[idx, 4]), float(pred_bbox_3d_op[idx, 5]), float(pred_bbox_3d_op[idx, 3])])
+            result["location"].append([float(pred_bbox_3d_op[idx, 0]), float(pred_bbox_3d_op[idx, 1]), float(pred_bbox_3d_op[idx, 2]), float(pred_bbox_3d_op[idx, -1])])
+            # result["corners"].append(pred_bbox_corners_op[idx])
             result["score"].append(float(pred_cls_score_op[idx]))
+            result["vertices"].append(project_to_image(pred_bbox_corners_op[idx], calib_P))
         return result
 
 

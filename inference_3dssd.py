@@ -30,6 +30,7 @@ import argparse
 
 from dddssd.lib.core.config import cfg_from_file, cfg
 from dddssd.lib.core.inference import Evaluator
+from visualization.kitti_util import draw_projected_box3d
 
 try:
     import pygame
@@ -56,11 +57,12 @@ from core.bounding_box import create_kitti_data_point
 from utils.carla_utils import KeyboardHelper, MeasurementsDisplayHelper
 from core.constants import *
 from core.settings import make_carla_settings
-from utils import lidar_utils, vector3d_to_array, degrees_to_radians
+from utils import lidar_utils, degrees_to_radians
 import time
 from math import cos, sin
 
-MODEL_PATH = "dddssd/log/2020-05-23 11:49:17.807186/model-142032"
+# MODEL_PATH = "dddssd/log/2020-05-23 11:49:17.807186/model-142032"
+MODEL_PATH = "dddssd/log/2020-05-24 09:28:26.056807/model-178347"
 CONFIG_FILE = "dddssd/configs/carla/3dssd/3dssd.yaml"
 
 """ OUTPUT FOLDER GENERATION """
@@ -108,7 +110,7 @@ class CarlaGame(object):
             WINDOW_HEIGHT) if self._city_name is not None else None
         self._position = None
         self._agent_positions = None
-        self.captured_frame_no = 0
+        self.captured_frame_no = 9
         self._measurements = None
         self._extrinsic = None
         # To keep track of how far the car has driven since the last capture of data
@@ -141,6 +143,7 @@ class CarlaGame(object):
                 reset = self._on_loop()
                 if not reset:
                     self._on_render()
+                time.sleep(0.02)
         finally:
             pygame.quit()
 
@@ -295,37 +298,59 @@ class CarlaGame(object):
                     self._lidar_measurement.data))
                 point_cloud[:, 2] -= LIDAR_HEIGHT_POS
                 point_cloud = np.matmul(rotRP, point_cloud.T).T
-                # print(self._lidar_to_car_transform.matrix)
-                # print(self._camera_to_car_transform.matrix)
                 # Transform to camera space by the inverse of camera_to_car transform
                 point_cloud_cam = self._camera_to_car_transform.inverse().transform_points(point_cloud)
                 point_cloud_cam[:, 1] += LIDAR_HEIGHT_POS
-                image = lidar_utils.project_point_cloud(
-                    image, point_cloud_cam, self._intrinsic, 1)
+                image = lidar_utils.project_point_cloud(image, point_cloud_cam, self._intrinsic, 1)
+
+                if self._det_annos is not None:
+                    scores = self._det_annos["score"]
+                    vertices = self._det_annos["vertices"]
+                    bbox = self._det_annos["bbox"]
+
+                    for i, vert in enumerate(vertices):
+                        if scores[i]*100 > 45:
+                            draw_projected_box3d(image, vert, color=(0, 0, 255))
+                    self._det_annos = None
+                        # import cv2
+                        # cv2.rectangle(image, (int(bbox[i][0]), int(bbox[i][1])), (int(bbox[i][2]), int(bbox[i][3])), (0, 255, 255), 2)
+                    # m = [
+                    #         (np.array([[x-w/2]]), np.array([[y+h/2]]), np.array([[z+d/2]])),
+                    #         (np.array([[x+w/2]]), np.array([[y+h/2]]), np.array([[z+d/2]])),
+                    #         (np.array([[x-w/2]]), np.array([[y-h/2]]), np.array([[z+d/2]])),
+                    #         (np.array([[x+w/2]]), np.array([[y-h/2]]), np.array([[z+d/2]])),
+                    #         (np.array([[x-w/2]]), np.array([[y+h/2]]), np.array([[z-d/2]])),
+                    #         (np.array([[x+w/2]]), np.array([[y+h/2]]), np.array([[z-d/2]])),
+                    #         (np.array([[x-w/2]]), np.array([[y-h/2]]), np.array([[z-d/2]])),
+                    #         (np.array([[x+w/2]]), np.array([[y-h/2]]), np.array([[z-d/2]]))
+                    #      ]
+                    # m2 = [
+                    #     (np.array([[corner[0][0]]]), np.array([[corner[0][1]]]), np.array([[corner[0][2]]])),
+                    #     (np.array([[corner[1][0]]]), np.array([[corner[1][1]]]), np.array([[corner[1][2]]])),
+                    #     (np.array([[corner[2][0]]]), np.array([[corner[2][1]]]), np.array([[corner[2][2]]])),
+                    #     (np.array([[corner[3][0]]]), np.array([[corner[3][1]]]), np.array([[corner[3][2]]])),
+                    #     (np.array([[corner[4][0]]]), np.array([[corner[4][1]]]), np.array([[corner[4][2]]])),
+                    #     (np.array([[corner[5][0]]]), np.array([[corner[5][1]]]), np.array([[corner[5][2]]])),
+                    #     (np.array([[corner[6][0]]]), np.array([[corner[6][1]]]), np.array([[corner[6][2]]])),
+                    #     (np.array([[corner[7][0]]]), np.array([[corner[7][1]]]), np.array([[corner[7][2]]]))
+                    # ]
+
+                    # m = [
+                    #         [x-w/2, y+h/2, z+d/2],
+                    #         [x+w/2, y+h/2, z+d/2],
+                    #         [x-w/2, y-h/2, z+d/2],
+                    #         [x+w/2, y-h/2, z+d/2],
+                    #         [x-w/2, y+h/2, z-d/2],
+                    #         [x+w/2, y+h/2, z-d/2],
+                    #         [x-w/2, y-h/2, z-d/2],
+                    #         [x+w/2, y-h/2, z-d/2],
+                    #      ]
 
             # Display image
             surface = pygame.surfarray.make_surface(image.swapaxes(0, 1))
-
-            if self._det_annos is not None:
-                scores = self._det_annos["score"]
-                b_boxes = self._det_annos["bbox"]
-                dimens = self._det_annos["dimensions"]
-                location = self._det_annos["location"]
-                for i, score in enumerate(scores):
-                    if score * 100 > 30:
-                        bbox = b_boxes[i]
-                        pygame.draw.rect(surface, (0, 0, 255), (bbox[0], bbox[1], bbox[2] - bbox[0], bbox[3] - bbox[1]),
-                                         3)
-
             self._display.blit(surface, (0, 0))
-            if self._map_view is not None:
-                self._display_agents(self._map_view)
             pygame.display.flip()
 
-            # Determine whether to save files
-            # distance_driven = self._distance_since_last_recording()
-            # print("Distance driven since last recording: {}".format(distance_driven))
-            # has_driven_long_enough = distance_driven is None or distance_driven > DISTANCE_SINCE_LAST_RECORDING
             if (self._timer.step + 1) % STEPS_BETWEEN_RECORDINGS == 0:
                 if datapoints:
                     # Avoid doing this twice or unnecessarily often
@@ -362,21 +387,16 @@ class CarlaGame(object):
                     self._update_agent_location()
                     # Save screen, lidar and kitti training labels together with calibration and groundplane files
                     self._save_training_files(datapoints, point_cloud)
-                    self._get_predictions(image)
+                    self._det_annos = self.evaluator.evaluate(self.captured_frame_no)
                     self.captured_frame_no += 1
                     self._captured_frames_since_restart += 1
                     self._frames_since_last_capture = 0
                 else:
-                    logging.debug(
-                        "Could save datapoint".format(
-                            DISTANCE_SINCE_LAST_RECORDING))
+                    logging.debug("Could save datapoint".format(DISTANCE_SINCE_LAST_RECORDING))
             else:
                 self._frames_since_last_capture += 1
                 logging.debug(
                     "Could not save training data - no visible agents of selected classes in scene")
-
-    def _get_predictions(self, image):
-        self._det_annos = self.evaluator.evaluate(self.captured_frame_no)
 
     def _update_agent_location(self):
         self._agent_location_on_last_capture = self._measurements.player_measurements.transform.location
@@ -403,6 +423,7 @@ class CarlaGame(object):
         logging.info("Attempting to save at timer step {}, frame no: {}".format(
             self._timer.step, self.captured_frame_no))
         groundplane_fname = GROUNDPLANE_PATH.format(self.captured_frame_no)
+
         lidar_fname = LIDAR_PATH.format(self.captured_frame_no)
         kitti_fname = LABEL_PATH.format(self.captured_frame_no)
         img_fname = IMAGE_PATH.format(self.captured_frame_no)
@@ -418,32 +439,6 @@ class CarlaGame(object):
                         LIDAR_HEIGHT_POS, LIDAR_DATA_FORMAT)
         save_calibration_matrices(
             calib_filename, self._intrinsic, self._extrinsic)
-
-    def _display_agents(self, image):
-        image = image[:, :, :3]
-
-        new_window_width = (float(WINDOW_HEIGHT) / float(self._map_shape[0])) * \
-                           float(self._map_shape[1])
-        surface = pygame.surfarray.make_surface(image.swapaxes(0, 1))
-        w_pos = int(
-            self._position[0] * (float(WINDOW_HEIGHT) / float(self._map_shape[0])))
-        h_pos = int(self._position[1] *
-                    (new_window_width / float(self._map_shape[1])))
-        pygame.draw.circle(surface, [255, 0, 0, 255], (w_pos, h_pos), 6, 0)
-        for agent in self._agent_positions:
-            if agent.HasField('vehicle'):
-                agent_position = self._map.convert_to_pixel([
-                    agent.vehicle.transform.location.x,
-                    agent.vehicle.transform.location.y,
-                    agent.vehicle.transform.location.z])
-                w_pos = int(
-                    agent_position[0] * (float(WINDOW_HEIGHT) / float(self._map_shape[0])))
-                h_pos = int(
-                    agent_position[1] * (new_window_width / float(self._map_shape[1])))
-                pygame.draw.circle(
-                    surface, [255, 0, 255, 255], (w_pos, h_pos), 4, 0)
-
-        self._display.blit(surface, (WINDOW_WIDTH, 0))
 
 
 def should_detect_class(agent):

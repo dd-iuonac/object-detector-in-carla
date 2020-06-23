@@ -2,7 +2,7 @@
 GEN_DATA = True  # Whether or not to save training data
 VISUALIZE_LIDAR = False
 # How many frames to wait between each capture of screen, bounding boxes and lidar
-STEPS_BETWEEN_RECORDINGS = 10
+STEPS_BETWEEN_RECORDINGS = 3
 CLASSES_TO_LABEL = ["Vehicle"]  # , "Pedestrian"]
 # Lidar can be saved in bin to comply to kitti, or the standard .ply format
 LIDAR_DATA_FORMAT = "bin"
@@ -25,7 +25,7 @@ MIN_BBOX_AREA_IN_PX = 100
 
 
 """ AGENT SETTINGS """
-NUM_VEHICLES = 20
+NUM_VEHICLES = 300
 NUM_PEDESTRIANS = 10
 
 """ RENDERING SETTINGS """

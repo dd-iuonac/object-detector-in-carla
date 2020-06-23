@@ -372,7 +372,7 @@ def tf_project_to_image_tensor(pts_3d, P):
 ####################### ProjectToImage ################################
 
 
-def draw_projected_box3d(image, qs, color=(255,255,255), thickness=2):
+def draw_projected_box3d(image, qs, color=(255, 255, 255), thickness=2):
     ''' Draw 3d bounding box in image
         qs: (8,3) array of vertices for the 3d box in following order:
             1 -------- 0
