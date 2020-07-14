@@ -4,12 +4,15 @@ using [**CADET**](https://github.com/Ozzyz/carla-data-export), to train [**Point
 and [**3DSSD**](https://github.com/Jia-Research-Lab/3DSSD) neural networks on it, and to make real-time predictions in
  [**CARLA simulator**](https://github.com/carla-simulator/carla).
 
-<img src="images/architecture.png" width="500" height="500" align="center">
+<img src="images/architecture.png" height="600" align="center">
+
 
 ## Generate dataset
 [**CADET**]() is used for generate samples from CARLA Simulator in KITTI format.
 For more detailed instructions see [CARLA_DATA_EXPORT](CARLA_DATA_EXPORT.md).
+
 <img src="images/data-generation.png">
+
 Script:
 ```
 python datageneration.py --autopilot
@@ -20,6 +23,7 @@ Training supports PointPillars and 3DSSD, but new methods can be integrated easi
 For more detailed instructions regarding te environment see [PointPillars](pointpillars/README.md) and [3DSSD](dddssd/README.md).
 
 ## Inference
+
 <img src="images/3dssd-det-0.png">
 
 CARLA simulator needs to be running in server-mode:
