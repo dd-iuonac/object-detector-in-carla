@@ -1,13 +1,3 @@
-#!/usr/bin/env python3
-
-# Copyright (c) 2017 Computer Vision Center (CVC) at the Universitat Autonoma de
-# Barcelona (UAB).
-#
-# This work is licensed under the terms of the MIT license.
-# For a copy, see <https://opensource.org/licenses/MIT>.
-
-# Keyboard controlling for CARLA. Please refer to client_example.py for a simpler
-# and more documented example.
 
 """
 Welcome to CARLA manual control.
@@ -62,8 +52,7 @@ from utils import lidar_utils, degrees_to_radians
 import time
 from math import cos, sin
 
-# MODEL_PATH = "dddssd/log/2020-05-23 11:49:17.807186/model-142032"
-MODEL_PATH = "dddssd/log/2020-05-24 09:28:26.056807/model-178347"
+MODEL_PATH = "dddssd/log/2020-05-24 09:28:26.056807-AP_76.51/model-181575"
 CONFIG_FILE = "dddssd/configs/carla/3dssd/3dssd.yaml"
 
 """ OUTPUT FOLDER GENERATION """
@@ -386,12 +375,14 @@ class CarlaGame(object):
                     print(annos)
                     scores = annos["score"]
                     vertices = annos["vertices"]
+                    bbox = annos["bbox"]
 
                     for i, score in enumerate(scores):
                         if score * 100 > 35:
                             # draw 3D
                             image = draw_projected_box3d(image, vertices[i], color=(0, 0, 255), thickness=1)
-
+                            image = cv2.putText(image, str(round(score*100, 2)), (int(bbox[i][0]), int(bbox[i][1])),
+                                                cv2.FONT_HERSHEY_SIMPLEX, 0.3, (255, 0, 255), 1, cv2.LINE_AA)
                             # draw 2D
                             # bbox = annos["bbox"]
                             # x1, y1, x2, y2 = bbox[i]
@@ -404,6 +395,7 @@ class CarlaGame(object):
                     self.captured_frame_no += 1
                     self._captured_frames_since_restart += 1
                     self._frames_since_last_capture = 0
+                    time.sleep(0.5)
                 else:
                     logging.debug("Could save datapoint".format(DISTANCE_SINCE_LAST_RECORDING))
             else:

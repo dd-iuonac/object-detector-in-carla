@@ -372,6 +372,6 @@ if __name__ == '__main__':
     if args.no_gt:
         cfg.TEST.WITH_GT = False
 
-    cur_evaluator = Evaluator(config=cfg, model_path="dddssd/log/2020-05-23 11:49:17.807186/model-142032")
+    cur_evaluator = Evaluator(config=cfg, model_path="dddssd/log/2020-05-23 11:49:17.807186-AP_76.46/model-142032")
     cur_evaluator.evaluate("000002")
     print("**** Finish evaluation steps ****")

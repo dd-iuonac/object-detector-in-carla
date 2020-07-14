@@ -1,22 +1,3 @@
-#!/usr/bin/env python3
-
-"""
-Welcome to CARLA manual control.
-
-Use ARROWS or WASD keys for control.
-
-    W            : throttle
-    S            : brake
-    AD           : steer
-    Q            : toggle reverse
-    Space        : hand-brake
-    P            : toggle autopilot
-
-    R            : restart level
-
-STARTING in a moment...
-"""
-
 import argparse
 import pathlib
 
@@ -425,21 +406,22 @@ class CarlaGame(object):
 
             if self._det_annos is not None:
                 scores = self._det_annos["score"]
-                b_boxes = self._det_annos["bbox"]
+                bbox = self._det_annos["bbox"]
                 dimens = self._det_annos["dimensions"]
                 rotation_y = self._det_annos["rotation_y"]
                 location = self._det_annos["location"]
 
-                for i, box in enumerate(b_boxes):
-                    if scores[i] * 100 > 35:
+                for i, score in enumerate(scores):
+                    if score * 100 > 35:
                         x, y, z = location[i]
-                        h, l, w = dimens[i]
+                        l, h, w = dimens[i]
                         ry = rotation_y[i]
 
                         # draw 3D
                         box3d_pts_2d, box3d_pts_3d = comp_box_3d(h, w, l, x, y, z, ry, self._carla_info['calib/P2'])
                         image = draw_projected_box3d(image, box3d_pts_2d, color=(0, 0, 255), thickness=1)
-
+                        image = cv2.putText(image, str(round(score * 100, 2)), (int(bbox[i][0]), int(bbox[i][1])),
+                                            cv2.FONT_HERSHEY_SIMPLEX, 0.3, (255, 0, 255), 1, cv2.LINE_AA)
                         # draw 2D
                         # x1, y1, x2, y2 = b_boxes[i]
                         # cv2.rectangle(image, pt1=(x1, y1), pt2=(x2, y2), color=(0, 0, 255), thickness=2)

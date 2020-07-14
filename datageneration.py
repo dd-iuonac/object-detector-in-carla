@@ -1,14 +1,3 @@
-#!/usr/bin/env python3
-
-# Copyright (c) 2017 Computer Vision Center (CVC) at the Universitat Autonoma de
-# Barcelona (UAB).
-#
-# This work is licensed under the terms of the MIT license.
-# For a copy, see <https://opensource.org/licenses/MIT>.
-
-# Keyboard controlling for CARLA. Please refer to client_example.py for a simpler
-# and more documented example.
-
 """
 Welcome to CARLA manual control.
 

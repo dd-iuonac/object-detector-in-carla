@@ -63,8 +63,8 @@ from utils import lidar_utils, degrees_to_radians
 import time
 from math import cos, sin
 
-# MODEL_PATH = "dddssd/log/2020-05-23 11:49:17.807186/model-142032"
-MODEL_PATH = "dddssd/log/2020-05-24 09:28:26.056807/model-178347"
+# MODEL_PATH = "dddssd/log/2020-05-23 11:49:17.807186-AP_76.46/model-142032"
+MODEL_PATH = "dddssd/log/2020-05-24 09:28:26.056807-AP_76.51/model-178347"
 CONFIG_FILE = "dddssd/configs/carla/3dssd/3dssd.yaml"
 
 """ OUTPUT FOLDER GENERATION """
