@@ -3,12 +3,14 @@ This repository contains code used to generate a dataset (34736 training and 840
 using [**CADET**](https://github.com/Ozzyz/carla-data-export), to train [**PointPillars**](https://github.com/nutonomy/second.pytorch) 
 and [**3DSSD**](https://github.com/Jia-Research-Lab/3DSSD) neural networks on it, and to make real-time predictions in
  [**CARLA simulator**](https://github.com/carla-simulator/carla).
+ 
+ Short demo [here](https://youtu.be/pE7UOYioPKk).
 
-<img src="images/architecture.png" height="600" align="center">
+<img src="images/architecture.png">
 
 
 ## Generate dataset
-[**CADET**]() is used for generate samples from CARLA Simulator in KITTI format.
+[**CADET**](https://github.com/Ozzyz/carla-data-export) is used for generate samples from CARLA Simulator in KITTI format.
 For more detailed instructions see [CARLA_DATA_EXPORT](CARLA_DATA_EXPORT.md).
 
 <img src="images/data-generation.png">
