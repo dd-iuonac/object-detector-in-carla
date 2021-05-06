@@ -43,7 +43,7 @@ filelock==3.0.12
 fire==0.3.1
 flake8==3.7.9
 Flask==1.1.2
-Flask-Cors==3.0.8
+Flask-Cors==3.0.9
 fsspec==0.7.1
 future==0.18.2
 gevent==1.4.0
