@@ -1,5 +1,5 @@
 Pillow~=7.1.2
-numpy~=1.18.4
+numpy~=1.21.0
 protobuf
 pygame~=1.9.6
 matplotlib~=3.2.1
