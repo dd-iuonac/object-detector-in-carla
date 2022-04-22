@@ -1,4 +1,4 @@
-Pillow~=7.1.2
+Pillow~=9.0.1
 numpy~=1.21.0
 protobuf
 pygame~=1.9.6
